@@ -71,6 +71,11 @@ export interface Wall {
   h: number;
 }
 
+export interface ExitPortal {
+  pos: Vec2;
+  active: boolean;
+}
+
 export interface GameState {
   phase: 'lobby' | 'playing' | 'gameover' | 'victory';
   player: Player;
@@ -89,6 +94,10 @@ export interface GameState {
   upgrades: Upgrades;
   screenShake: number;
   damageFlash: number;
+  exitPortal: ExitPortal | null;
+  clearMessageTimer: number;
+  transitionTimer: number;
+  transitionTarget: { floor: number; room: number } | null;
 }
 
 export interface Particle {

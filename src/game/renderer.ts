@@ -296,6 +296,82 @@ function drawMinimap(ctx: CanvasRenderingContext2D, state: GameState) {
   }
 }
 
+function drawExitPortal(ctx: CanvasRenderingContext2D, state: GameState) {
+  const portal = state.exitPortal;
+  if (!portal || !portal.active) return;
+
+  const { x, y } = portal.pos;
+  const t = Date.now() / 400;
+  const pulse = 1 + Math.sin(t) * 0.15;
+
+  // Outer glow
+  ctx.globalAlpha = 0.3 + Math.sin(t) * 0.1;
+  drawPixelCircle(ctx, x, y, 32 * pulse, '#D4A03A');
+  ctx.globalAlpha = 0.5;
+  drawPixelCircle(ctx, x, y, 22 * pulse, '#FFD700');
+  ctx.globalAlpha = 1;
+
+  // Inner swirl
+  drawPixelCircle(ctx, x, y, 14, '#FFF8E1');
+  ctx.strokeStyle = '#B8860B';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 3; i++) {
+    const a = t * 2 + (i * Math.PI * 2) / 3;
+    ctx.beginPath();
+    ctx.arc(x, y, 10, a, a + 1.2);
+    ctx.stroke();
+  }
+
+  // Label
+  ctx.fillStyle = '#FFD700';
+  ctx.font = 'bold 10px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('☕ SAÍDA', x, y - 36);
+}
+
+function drawClearMessage(ctx: CanvasRenderingContext2D, state: GameState) {
+  if (state.clearMessageTimer <= 0) return;
+
+  const alpha = Math.min(1, state.clearMessageTimer / 30);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#FFD700';
+  ctx.font = 'bold 24px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('☕ CAMINHO LIVRE! ☕', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
+  ctx.font = '14px monospace';
+  ctx.fillStyle = '#FFF';
+  ctx.fillText('Encontre o Portal de Vapor', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 30);
+  ctx.globalAlpha = 1;
+  ctx.textBaseline = 'alphabetic';
+}
+
+function drawTransitionFade(ctx: CanvasRenderingContext2D, state: GameState) {
+  if (state.transitionTimer <= 0) return;
+
+  // First 30 frames: fade out (alpha 0→1), last 30: fade in (alpha 1→0)
+  let alpha: number;
+  if (state.transitionTimer > 30) {
+    alpha = (60 - state.transitionTimer) / 30; // 0 → 1
+  } else {
+    alpha = state.transitionTimer / 30; // 1 → 0
+  }
+
+  ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  if (alpha > 0.5) {
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    const target = state.transitionTarget;
+    const floorLabel = target ? `Andar ${target.floor + 1}` : '';
+    ctx.fillText(floorLabel, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    ctx.globalAlpha = 1;
+  }
+}
+
 export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.save();
 
@@ -322,6 +398,8 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
     drawPickup(ctx, pickup);
   }
 
+  drawExitPortal(ctx, state);
+
   for (const enemy of room.enemies) {
     drawEnemy(ctx, enemy);
   }
@@ -340,6 +418,9 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.textAlign = 'left';
   ctx.fillText(`Sala ${state.currentRoom + 1}/${state.rooms.length}`, 50, 25);
   ctx.fillText(`Andar ${state.floor + 1}`, 50, 42);
+
+  drawClearMessage(ctx, state);
+  drawTransitionFade(ctx, state);
 
   ctx.restore();
 }

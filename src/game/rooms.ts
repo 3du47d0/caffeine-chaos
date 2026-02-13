@@ -64,6 +64,7 @@ export function generateFloor(floor: number, numRooms: number): Room[] {
   for (let i = 0; i < numRooms; i++) {
     const isBoss = i === numRooms - 1;
     const enemyCount = isBoss ? 1 + floor : Math.min(3 + floor + Math.floor(i / 2), 8);
+    const hpMult = 1 + floor * 0.3; // +30% HP per floor
     const enemies: Enemy[] = [];
     const pickups: Pickup[] = [];
 
@@ -74,6 +75,8 @@ export function generateFloor(floor: number, numRooms: number): Room[] {
         rand(margin + 50, ROOM_HEIGHT - margin - 50),
         type
       );
+      enemy.hp = Math.floor(enemy.hp * hpMult);
+      enemy.maxHp = enemy.hp;
       if (isBoss) {
         enemy.hp *= 3;
         enemy.maxHp *= 3;

@@ -78,11 +78,40 @@ export function createInitialState(upgrades: Upgrades): GameState {
     upgrades,
     screenShake: 0,
     damageFlash: 0,
+    exitPortal: null,
+    clearMessageTimer: 0,
+    transitionTimer: 0,
+    transitionTarget: null,
   };
 }
 
 export function update(state: GameState): GameState {
   if (state.phase !== 'playing') return state;
+
+  // Handle fade transition
+  if (state.transitionTimer > 0) {
+    state.transitionTimer--;
+    if (state.transitionTimer === 30) {
+      const target = state.transitionTarget!;
+      if (target.floor !== state.floor) {
+        state.floor = target.floor;
+        state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR);
+        state.currentRoom = 0;
+      } else {
+        state.currentRoom = target.room;
+      }
+      state.player.pos = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 };
+      state.projectiles = [];
+      state.exitPortal = null;
+      state.clearMessageTimer = 0;
+    }
+    if (state.transitionTimer === 0) {
+      state.transitionTarget = null;
+    }
+    return state;
+  }
+
+  if (state.clearMessageTimer > 0) state.clearMessageTimer--;
 
   const { player, keys } = state;
   const room = state.rooms[state.currentRoom];
@@ -303,10 +332,17 @@ export function update(state: GameState): GameState {
   // Remove dead enemies
   room.enemies = room.enemies.filter(e => e.hp > 0);
 
-  // Check room cleared
+  // Check room cleared — spawn exit portal
   if (!room.cleared && room.enemies.length === 0) {
     room.cleared = true;
     state.roomsCleared++;
+    state.clearMessageTimer = 120; // ~2 seconds at 60fps
+    spawnParticles(state, { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }, '#FFD700', 20, 5);
+
+    // Spawn exit portal at a random position
+    const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
+    const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
+    state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
   }
 
   // Pickup collision
@@ -324,31 +360,30 @@ export function update(state: GameState): GameState {
     return true;
   });
 
-  // Door collision
+  // Exit portal collision
+  if (state.exitPortal?.active && dist(player.pos, state.exitPortal.pos) < player.size + 24) {
+    state.transitionTimer = 60; // 30 frames fade out + 30 frames fade in
+    const isLastRoom = state.currentRoom >= state.rooms.length - 1;
+    if (isLastRoom) {
+      if (state.floor >= TOTAL_FLOORS - 1) {
+        state.phase = 'victory';
+      } else {
+        state.transitionTarget = { floor: state.floor + 1, room: 0 };
+      }
+    } else {
+      state.transitionTarget = { floor: state.floor, room: state.currentRoom + 1 };
+    }
+    state.exitPortal.active = false;
+  }
+
+  // Door collision (backward navigation)
   if (room.cleared) {
     for (const door of room.doors) {
-      if (dist(player.pos, door.pos) < player.size + 20) {
-        if (door.leadsTo >= state.rooms.length) {
-          // Next floor
-          if (state.floor < TOTAL_FLOORS - 1) {
-            state.floor++;
-            state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR);
-            state.currentRoom = 0;
-            player.pos = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT - 80 };
-            state.projectiles = [];
-          } else {
-            state.phase = 'victory';
-          }
-        } else {
-          state.currentRoom = door.leadsTo;
-          state.projectiles = [];
-          // Position player at opposite door
-          if (door.direction === 'north') {
-            player.pos = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT - 80 };
-          } else if (door.direction === 'south') {
-            player.pos = { x: CANVAS_WIDTH / 2, y: 80 };
-          }
-        }
+      if (door.direction === 'south' && dist(player.pos, door.pos) < player.size + 20) {
+        state.currentRoom = door.leadsTo;
+        state.projectiles = [];
+        player.pos = { x: CANVAS_WIDTH / 2, y: 80 };
+        state.exitPortal = null;
         break;
       }
     }
