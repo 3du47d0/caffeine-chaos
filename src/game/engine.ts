@@ -1,5 +1,5 @@
 import {
-  GameState, Player, Projectile, Particle, Vec2, Enemy, Upgrades,
+  GameState, Player, Projectile, Particle, Vec2, Enemy, Upgrades, Boss, RunBuff,
 } from './types';
 import {
   CANVAS_WIDTH, CANVAS_HEIGHT, PLAYER_SIZE, PLAYER_SPEED, PLAYER_HP,
@@ -8,6 +8,7 @@ import {
   BEAN_SPEED, BEAN_DAMAGE, BEAN_SIZE, ENEMY_CONFIGS, ROOMS_PER_FLOOR, TOTAL_FLOORS,
 } from './constants';
 import { generateFloor } from './rooms';
+import { defaultRunBuffs, drawRewards } from './buffs';
 
 function dist(a: Vec2, b: Vec2): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
@@ -58,6 +59,7 @@ export function createInitialState(upgrades: Upgrades): GameState {
     invincibleTimer: 0,
     facing: { x: 0, y: -1 },
     shootCooldown: 0,
+    shield: false,
   };
 
   return {
@@ -76,13 +78,204 @@ export function createInitialState(upgrades: Upgrades): GameState {
     mousePos: { x: CANVAS_WIDTH / 2, y: 0 },
     mouseDown: false,
     upgrades,
+    runBuffs: defaultRunBuffs(),
     screenShake: 0,
     damageFlash: 0,
     exitPortal: null,
     clearMessageTimer: 0,
     transitionTimer: 0,
     transitionTarget: null,
+    rewardChoices: [],
   };
+}
+
+// Apply a chosen run buff to the game state
+export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
+  state.runBuffs[buff.id]++;
+
+  // Immediate effects
+  switch (buff.id) {
+    case 'termo':
+      state.player.maxHp += 50;
+      state.player.hp = Math.min(state.player.hp + 50, state.player.maxHp);
+      break;
+    case 'leite_aveia':
+      state.player.shield = true;
+      break;
+  }
+
+  // Spawn transition after reward chosen
+  state.phase = 'playing';
+  state.rewardChoices = [];
+
+  const isLastRoom = state.currentRoom >= state.rooms.length - 1;
+  if (isLastRoom) {
+    if (state.floor >= TOTAL_FLOORS - 1) {
+      state.phase = 'victory';
+    } else {
+      state.transitionTimer = 60;
+      state.transitionTarget = { floor: state.floor + 1, room: 0 };
+    }
+  } else {
+    state.transitionTimer = 60;
+    state.transitionTarget = { floor: state.floor, room: state.currentRoom + 1 };
+  }
+
+  return state;
+}
+
+function updateBoss(state: GameState, boss: Boss) {
+  const { player } = state;
+  const margin = 60;
+
+  boss.angle += 0.04;
+  boss.moveTimer--;
+  boss.shootTimer--;
+  boss.summonTimer--;
+
+  const damageMult = getDamageMult(state);
+
+  switch (boss.type) {
+    case 'grinder': {
+      // Spin and chase player
+      if (boss.moveTimer <= 0) {
+        boss.moveTimer = 30;
+        const toPlayer = normalize({ x: player.pos.x - boss.pos.x, y: player.pos.y - boss.pos.y });
+        boss.pos.x += toPlayer.x * 2.5;
+        boss.pos.y += toPlayer.y * 2.5;
+      }
+      // Shoot shard burst every 80 frames
+      if (boss.shootTimer <= 0) {
+        boss.shootTimer = 80;
+        for (let i = 0; i < 8; i++) {
+          const a = (Math.PI * 2 * i) / 8 + boss.angle;
+          state.projectiles.push({
+            pos: { x: boss.pos.x, y: boss.pos.y },
+            vel: { x: Math.cos(a) * 3.5, y: Math.sin(a) * 3.5 },
+            size: 5,
+            damage: 15,
+            friendly: false,
+            lifetime: 80,
+          });
+        }
+      }
+      break;
+    }
+    case 'steam_king': {
+      // Float and place burn zones
+      if (boss.moveTimer <= 0) {
+        boss.moveTimer = 60;
+        const angle = Math.random() * Math.PI * 2;
+        boss.pos.x = clamp(boss.pos.x + Math.cos(angle) * 80, margin + boss.size, CANVAS_WIDTH - margin - boss.size);
+        boss.pos.y = clamp(boss.pos.y + Math.sin(angle) * 80, margin + boss.size, CANVAS_HEIGHT - margin - boss.size);
+      }
+      // Burn zone projectiles (stationary)
+      if (boss.shootTimer <= 0) {
+        boss.shootTimer = 90;
+        for (let i = 0; i < 3; i++) {
+          const tx = 100 + Math.random() * (CANVAS_WIDTH - 200);
+          const ty = 100 + Math.random() * (CANVAS_HEIGHT - 200);
+          state.projectiles.push({
+            pos: { x: tx, y: ty },
+            vel: { x: 0, y: 0 },
+            size: 28,
+            damage: 8,
+            friendly: false,
+            lifetime: 120,
+            isBurnZone: true,
+          });
+        }
+      }
+      // Periodic invisibility: toggle every 150 frames
+      if (Math.floor(boss.angle * 10) % 60 === 0) {
+        boss.invisibleTimer = boss.invisibleTimer > 0 ? 0 : 60;
+      }
+      if (boss.invisibleTimer > 0) boss.invisibleTimer--;
+      break;
+    }
+    case 'overflowing_pot': {
+      // Static but shoots circular jets
+      boss.pos.x = CANVAS_WIDTH / 2;
+      boss.pos.y = 170;
+
+      if (boss.shootTimer <= 0) {
+        boss.shootTimer = 50;
+        boss.phase = (boss.phase + 1) % 2;
+        const count = 12;
+        for (let i = 0; i < count; i++) {
+          const a = (Math.PI * 2 * i) / count + (boss.phase * Math.PI) / count;
+          state.projectiles.push({
+            pos: { x: boss.pos.x, y: boss.pos.y },
+            vel: { x: Math.cos(a) * 2.8, y: Math.sin(a) * 2.8 },
+            size: 6,
+            damage: 12,
+            friendly: false,
+            lifetime: 100,
+          });
+        }
+      }
+      // Summon mini cups
+      if (boss.summonTimer <= 0) {
+        boss.summonTimer = 200;
+        const room = state.rooms[state.currentRoom];
+        for (let i = 0; i < 2; i++) {
+          room.enemies.push({
+            pos: { x: 150 + Math.random() * 500, y: 150 + Math.random() * 300 },
+            vel: { x: 0, y: 0 },
+            size: 14,
+            hp: 40,
+            maxHp: 40,
+            type: 'angry_cup',
+            shootTimer: 60,
+            moveTimer: 30,
+            targetPos: { x: player.pos.x, y: player.pos.y },
+            dropGold: 2,
+          });
+        }
+      }
+      break;
+    }
+  }
+
+  // Clamp boss position
+  boss.pos.x = clamp(boss.pos.x, margin + boss.size, CANVAS_WIDTH - margin - boss.size);
+  boss.pos.y = clamp(boss.pos.y, margin + boss.size, CANVAS_HEIGHT - margin - boss.size);
+
+  // Contact damage with player
+  if (player.invincibleTimer <= 0 && dist(player.pos, boss.pos) < player.size + boss.size) {
+    takeDamage(state, 20);
+  }
+}
+
+function takeDamage(state: GameState, amount: number) {
+  const { player } = state;
+  if (player.invincibleTimer > 0) return;
+
+  if (player.shield) {
+    player.shield = false; // absorb hit
+    spawnParticles(state, player.pos, '#87CEEB', 10, 4);
+    player.invincibleTimer = 30;
+    return;
+  }
+
+  player.hp -= amount;
+  player.invincibleTimer = PLAYER_INVINCIBLE_AFTER_HIT;
+  state.screenShake = 5;
+  state.damageFlash = 6;
+  spawnParticles(state, player.pos, '#C0392B', 8);
+}
+
+function getDamageMult(state: GameState): number {
+  return (1 + state.upgrades.damageBonus * 0.1) * (1 + state.runBuffs.torrado * 0.2);
+}
+
+function getSpeedMult(state: GameState): number {
+  return (1 + state.upgrades.speedBonus * 0.1) * (1 + state.runBuffs.descaf * 0.2);
+}
+
+function getShootCooldown(state: GameState): number {
+  const chantillyBonus = 1 - state.runBuffs.chantilly * 0.2;
+  return Math.max(4, Math.floor(PLAYER_SHOOT_COOLDOWN * chantillyBonus));
 }
 
 export function update(state: GameState): GameState {
@@ -104,6 +297,10 @@ export function update(state: GameState): GameState {
       state.projectiles = [];
       state.exitPortal = null;
       state.clearMessageTimer = 0;
+      // Restore shield per room if buff active
+      if (state.runBuffs.leite_aveia > 0) {
+        state.player.shield = true;
+      }
     }
     if (state.transitionTimer === 0) {
       state.transitionTarget = null;
@@ -116,9 +313,10 @@ export function update(state: GameState): GameState {
   const { player, keys } = state;
   const room = state.rooms[state.currentRoom];
   const margin = 50;
-  const damageMult = 1 + state.upgrades.damageBonus * 0.1;
-  const speedMult = 1 + state.upgrades.speedBonus * 0.1;
+  const damageMult = getDamageMult(state);
+  const speedMult = getSpeedMult(state);
   const dashCdr = 1 - state.upgrades.dashCdrBonus * 0.15;
+  const dashSpeedMult = 1 + state.runBuffs.descaf * 0.2;
 
   // Player movement
   let dx = 0, dy = 0;
@@ -128,7 +326,7 @@ export function update(state: GameState): GameState {
   if (keys.has('d') || keys.has('arrowright')) dx += 1;
 
   const moveDir = normalize({ x: dx, y: dy });
-  const speed = player.dashTimer > 0 ? PLAYER_DASH_SPEED : PLAYER_SPEED * speedMult;
+  const speed = player.dashTimer > 0 ? PLAYER_DASH_SPEED * dashSpeedMult : PLAYER_SPEED * speedMult;
 
   if (player.dashTimer > 0) {
     player.pos.x += player.facing.x * speed;
@@ -156,7 +354,6 @@ export function update(state: GameState): GameState {
   for (const wall of room.walls) {
     const px = player.pos.x, py = player.pos.y, ps = player.size;
     if (rectCollision(px - ps, py - ps, ps * 2, ps * 2, wall.x, wall.y, wall.w, wall.h)) {
-      // Push out
       const cx = wall.x + wall.w / 2;
       const cy = wall.y + wall.h / 2;
       const diffX = px - cx;
@@ -184,11 +381,15 @@ export function update(state: GameState): GameState {
     player.invincibleTimer = PLAYER_DASH_DURATION;
     spawnParticles(state, player.pos, '#87CEEB', 8);
 
-    // Dash damage to nearby enemies
     for (const enemy of room.enemies) {
       if (dist(player.pos, enemy.pos) < player.size + enemy.size + 20) {
         enemy.hp -= 15 * damageMult;
         spawnParticles(state, enemy.pos, '#FFD700', 5);
+      }
+    }
+    if (room.boss && room.boss.hp > 0) {
+      if (dist(player.pos, room.boss.pos) < player.size + room.boss.size + 20) {
+        room.boss.hp -= 15 * damageMult;
       }
     }
   }
@@ -200,18 +401,21 @@ export function update(state: GameState): GameState {
     spawnParticles(state, player.pos, '#FFF', 20, 5);
     state.screenShake = 8;
 
-    // Damage all enemies in range
     for (const enemy of room.enemies) {
       if (dist(player.pos, enemy.pos) < 200) {
         enemy.hp -= 50 * damageMult;
         spawnParticles(state, enemy.pos, '#D4A03A', 8);
       }
     }
+    if (room.boss && room.boss.hp > 0 && dist(player.pos, room.boss.pos) < 200) {
+      room.boss.hp -= 50 * damageMult;
+    }
   }
 
   // Shooting
+  const shootCooldown = getShootCooldown(state);
   if (state.mouseDown && player.shootCooldown <= 0 && player.dashTimer <= 0) {
-    player.shootCooldown = PLAYER_SHOOT_COOLDOWN;
+    player.shootCooldown = shootCooldown;
     const dir = normalize({ x: state.mousePos.x - player.pos.x, y: state.mousePos.y - player.pos.y });
     state.projectiles.push({
       pos: { x: player.pos.x + dir.x * player.size, y: player.pos.y + dir.y * player.size },
@@ -223,16 +427,14 @@ export function update(state: GameState): GameState {
     });
   }
 
-  // Update enemies
+  // Update regular enemies
   for (const enemy of room.enemies) {
     if (enemy.hp <= 0) continue;
     const config = ENEMY_CONFIGS[enemy.type];
 
-    // Movement AI
     enemy.moveTimer--;
     if (enemy.moveTimer <= 0) {
       enemy.moveTimer = 40 + Math.random() * 40;
-      // Move toward player with some randomness
       const toPlayer = normalize({ x: player.pos.x - enemy.pos.x, y: player.pos.y - enemy.pos.y });
       enemy.targetPos = {
         x: enemy.pos.x + toPlayer.x * 100 + (Math.random() - 0.5) * 80,
@@ -246,7 +448,6 @@ export function update(state: GameState): GameState {
     enemy.pos.x = clamp(enemy.pos.x, margin + enemy.size, CANVAS_WIDTH - margin - enemy.size);
     enemy.pos.y = clamp(enemy.pos.y, margin + enemy.size, CANVAS_HEIGHT - margin - enemy.size);
 
-    // Enemy shooting
     enemy.shootTimer--;
     if (enemy.shootTimer <= 0 && (enemy.type === 'angry_cup' || enemy.type === 'drone')) {
       enemy.shootTimer = 60 + Math.random() * 60;
@@ -261,57 +462,86 @@ export function update(state: GameState): GameState {
       });
     }
 
-    // Contact damage
     if (player.invincibleTimer <= 0 && dist(player.pos, enemy.pos) < player.size + enemy.size) {
-      player.hp -= config.damage;
-      player.invincibleTimer = PLAYER_INVINCIBLE_AFTER_HIT;
-      state.screenShake = 5;
-      state.damageFlash = 6;
-      spawnParticles(state, player.pos, '#C0392B', 8);
+      takeDamage(state, config.damage);
     }
+  }
+
+  // Update boss
+  if (room.boss && room.boss.hp > 0) {
+    updateBoss(state, room.boss);
   }
 
   // Update projectiles
   state.projectiles = state.projectiles.filter(proj => {
-    proj.pos.x += proj.vel.x;
-    proj.pos.y += proj.vel.y;
+    if (!proj.isBurnZone) {
+      proj.pos.x += proj.vel.x;
+      proj.pos.y += proj.vel.y;
+    }
     proj.lifetime--;
 
-    // Out of bounds or expired
-    if (proj.lifetime <= 0 || proj.pos.x < 0 || proj.pos.x > CANVAS_WIDTH || proj.pos.y < 0 || proj.pos.y > CANVAS_HEIGHT) {
+    if (proj.lifetime <= 0 || (!proj.isBurnZone && (proj.pos.x < 0 || proj.pos.x > CANVAS_WIDTH || proj.pos.y < 0 || proj.pos.y > CANVAS_HEIGHT))) {
       return false;
     }
 
-    // Wall collision
-    for (const wall of room.walls) {
-      if (proj.pos.x > wall.x && proj.pos.x < wall.x + wall.w && proj.pos.y > wall.y && proj.pos.y < wall.y + wall.h) {
-        spawnParticles(state, proj.pos, '#888', 3);
-        return false;
+    // Wall collision (non-burn zones)
+    if (!proj.isBurnZone) {
+      for (const wall of room.walls) {
+        if (proj.pos.x > wall.x && proj.pos.x < wall.x + wall.w && proj.pos.y > wall.y && proj.pos.y < wall.y + wall.h) {
+          spawnParticles(state, proj.pos, '#888', 3);
+          return false;
+        }
       }
     }
 
     if (proj.friendly) {
-      // Hit enemies
+      // Hit regular enemies
       for (const enemy of room.enemies) {
         if (enemy.hp <= 0) continue;
         if (dist(proj.pos, enemy.pos) < proj.size + enemy.size) {
           enemy.hp -= proj.damage;
+          // Burn effect from canela buff
+          if (state.runBuffs.canela > 0 && Math.random() < 0.25) {
+            enemy.hp -= 5; // extra burn tick
+            spawnParticles(state, enemy.pos, '#FF6B35', 3);
+          }
           spawnParticles(state, proj.pos, '#6F4E37', 5);
           if (enemy.hp <= 0) {
             state.goldCollected += enemy.dropGold;
             spawnParticles(state, enemy.pos, '#FFD700', 12);
           }
-          return false;
+          if (!proj.isBurnZone) return false;
+        }
+      }
+      // Hit boss
+      if (room.boss && room.boss.hp > 0) {
+        if (dist(proj.pos, room.boss.pos) < proj.size + room.boss.size) {
+          room.boss.hp -= proj.damage;
+          if (state.runBuffs.canela > 0 && Math.random() < 0.25) {
+            room.boss.hp -= 5;
+            spawnParticles(state, room.boss.pos, '#FF6B35', 3);
+          }
+          spawnParticles(state, proj.pos, '#6F4E37', 5);
+          if (room.boss.hp <= 0) {
+            state.goldCollected += room.boss.dropGold;
+            spawnParticles(state, room.boss.pos, '#FFD700', 25, 6);
+            state.screenShake = 10;
+          }
+          if (!proj.isBurnZone) return false;
         }
       }
     } else {
-      // Hit player
+      // Burn zones hurt player on overlap
+      if (proj.isBurnZone) {
+        if (player.invincibleTimer <= 0 && dist(proj.pos, player.pos) < proj.size + player.size * 0.5) {
+          takeDamage(state, proj.damage);
+          player.invincibleTimer = 20; // shorter cooldown for zones
+        }
+        return proj.lifetime > 0;
+      }
+      // Regular enemy projectile hits player
       if (player.invincibleTimer <= 0 && dist(proj.pos, player.pos) < proj.size + player.size) {
-        player.hp -= proj.damage;
-        player.invincibleTimer = PLAYER_INVINCIBLE_AFTER_HIT;
-        state.screenShake = 4;
-        state.damageFlash = 5;
-        spawnParticles(state, player.pos, '#C0392B', 6);
+        takeDamage(state, proj.damage);
         return false;
       }
     }
@@ -332,17 +562,26 @@ export function update(state: GameState): GameState {
   // Remove dead enemies
   room.enemies = room.enemies.filter(e => e.hp > 0);
 
-  // Check room cleared — spawn exit portal
-  if (!room.cleared && room.enemies.length === 0) {
+  // Check room cleared (no enemies + boss dead or no boss)
+  const bossAlive = room.boss !== null && room.boss.hp > 0;
+  const allEnemiesDead = room.enemies.length === 0;
+
+  if (!room.cleared && allEnemiesDead && !bossAlive) {
     room.cleared = true;
     state.roomsCleared++;
-    state.clearMessageTimer = 120; // ~2 seconds at 60fps
+    state.clearMessageTimer = 120;
     spawnParticles(state, { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }, '#FFD700', 20, 5);
 
-    // Spawn exit portal at a random position
-    const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
-    const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
-    state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
+    if (room.isBossRoom) {
+      // Show reward screen before portal
+      state.rewardChoices = drawRewards(3);
+      state.phase = 'reward';
+    } else {
+      // Spawn exit portal
+      const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
+      const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
+      state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
+    }
   }
 
   // Pickup collision
@@ -362,18 +601,19 @@ export function update(state: GameState): GameState {
 
   // Exit portal collision
   if (state.exitPortal?.active && dist(player.pos, state.exitPortal.pos) < player.size + 24) {
-    state.transitionTimer = 60; // 30 frames fade out + 30 frames fade in
+    state.exitPortal.active = false;
     const isLastRoom = state.currentRoom >= state.rooms.length - 1;
     if (isLastRoom) {
       if (state.floor >= TOTAL_FLOORS - 1) {
         state.phase = 'victory';
       } else {
+        state.transitionTimer = 60;
         state.transitionTarget = { floor: state.floor + 1, room: 0 };
       }
     } else {
+      state.transitionTimer = 60;
       state.transitionTarget = { floor: state.floor, room: state.currentRoom + 1 };
     }
-    state.exitPortal.active = false;
   }
 
   // Door collision (backward navigation)
