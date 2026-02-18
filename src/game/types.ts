@@ -19,9 +19,11 @@ export interface Player extends Entity {
   invincibleTimer: number;
   facing: Vec2;
   shootCooldown: number;
+  shield: boolean; // Leite de Aveia buff
 }
 
 export type EnemyType = 'croissant' | 'angry_cup' | 'milk_blob' | 'drone';
+export type BossType = 'grinder' | 'steam_king' | 'overflowing_pot';
 
 export interface Enemy extends Entity {
   type: EnemyType;
@@ -31,6 +33,18 @@ export interface Enemy extends Entity {
   dropGold: number;
 }
 
+export interface Boss extends Entity {
+  type: BossType;
+  shootTimer: number;
+  moveTimer: number;
+  phase: number; // attack pattern phase
+  angle: number; // for rotation-based attacks
+  invisibleTimer: number; // steam_king invisibility
+  summonTimer: number; // overflowing_pot summon timer
+  dropGold: number;
+  burnTimer?: number;
+}
+
 export interface Projectile {
   pos: Vec2;
   vel: Vec2;
@@ -38,6 +52,7 @@ export interface Projectile {
   damage: number;
   friendly: boolean;
   lifetime: number;
+  isBurnZone?: boolean; // steam_king floor hazard
 }
 
 export interface Pickup {
@@ -52,10 +67,12 @@ export interface Room {
   width: number;
   height: number;
   enemies: Enemy[];
+  boss: Boss | null;
   pickups: Pickup[];
   cleared: boolean;
   doors: Door[];
   walls: Wall[];
+  isBossRoom: boolean;
 }
 
 export interface Door {
@@ -76,8 +93,33 @@ export interface ExitPortal {
   active: boolean;
 }
 
+// ---- Run Buff System ----
+export type RunBuffId =
+  | 'torrado'      // +20% damage
+  | 'leite_aveia'  // shield per room
+  | 'chantilly'    // +20% fire rate
+  | 'termo'        // +50 max hp
+  | 'canela'       // burn chance
+  | 'descaf';      // +20% speed & dash range
+
+export interface RunBuff {
+  id: RunBuffId;
+  name: string;
+  description: string;
+  icon: string;
+}
+
+export interface RunBuffs {
+  torrado: number;
+  leite_aveia: number;
+  chantilly: number;
+  termo: number;
+  canela: number;
+  descaf: number;
+}
+
 export interface GameState {
-  phase: 'lobby' | 'playing' | 'gameover' | 'victory';
+  phase: 'lobby' | 'playing' | 'reward' | 'gameover' | 'victory';
   player: Player;
   rooms: Room[];
   currentRoom: number;
@@ -92,12 +134,14 @@ export interface GameState {
   mousePos: Vec2;
   mouseDown: boolean;
   upgrades: Upgrades;
+  runBuffs: RunBuffs;
   screenShake: number;
   damageFlash: number;
   exitPortal: ExitPortal | null;
   clearMessageTimer: number;
   transitionTimer: number;
   transitionTarget: { floor: number; room: number } | null;
+  rewardChoices: RunBuff[];
 }
 
 export interface Particle {

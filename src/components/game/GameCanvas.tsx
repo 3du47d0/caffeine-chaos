@@ -4,12 +4,13 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../game/constants';
 import HUD from './HUD';
 import Lobby from './Lobby';
 import GameOver from './GameOver';
+import RewardScreen from './RewardScreen';
 
 const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const {
-    phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor,
-    startRun, returnToLobby, buyUpgrade, upgrades,
+    phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
+    startRun, returnToLobby, buyUpgrade, chooseBuff, upgrades,
   } = useGame(canvasRef);
 
   return (
@@ -39,8 +40,11 @@ const GameCanvas: React.FC = () => {
               imageRendering: 'pixelated',
             }}
           />
-          {phase === 'playing' && (
-            <HUD hp={hp} maxHp={maxHp} gold={runGold} dashCd={dashCd} ultCd={ultCd} floor={floor} />
+          {(phase === 'playing' || phase === 'reward') && (
+            <HUD hp={hp} maxHp={maxHp} gold={runGold} dashCd={dashCd} ultCd={ultCd} floor={floor} shield={playerShield} />
+          )}
+          {phase === 'reward' && rewardChoices.length > 0 && (
+            <RewardScreen choices={rewardChoices} onChoose={chooseBuff} />
           )}
           {(phase === 'gameover' || phase === 'victory') && (
             <GameOver

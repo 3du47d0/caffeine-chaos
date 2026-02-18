@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
-import { GameState, Upgrades } from '../game/types';
-import { createInitialState, update } from '../game/engine';
+import { GameState, Upgrades, RunBuff } from '../game/types';
+import { createInitialState, update, applyRunBuff } from '../game/engine';
 import { render } from '../game/renderer';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
 
@@ -15,6 +15,8 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const [ultCd, setUltCd] = useState(0);
   const [runGold, setRunGold] = useState(0);
   const [floor, setFloor] = useState(0);
+  const [rewardChoices, setRewardChoices] = useState<RunBuff[]>([]);
+  const [playerShield, setPlayerShield] = useState(false);
 
   const savedGoldRef = useRef(0);
   const upgradesRef = useRef<Upgrades>({
@@ -24,7 +26,6 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     dashCdrBonus: 0,
   });
 
-  // Load saved data
   useEffect(() => {
     try {
       const saved = localStorage.getItem('cafe_chaos_save');
@@ -50,6 +51,8 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     setPhase('playing');
     setHp(state.player.hp);
     setMaxHp(state.player.maxHp);
+    setRewardChoices([]);
+    setPlayerShield(false);
   }, []);
 
   const returnToLobby = useCallback(() => {
@@ -62,6 +65,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     stateRef.current = null;
     setPhase('lobby');
     setRunGold(0);
+    setRewardChoices([]);
   }, [saveData]);
 
   const buyUpgrade = useCallback((id: keyof Upgrades, cost: number) => {
@@ -74,6 +78,28 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
     return false;
   }, [saveData]);
+
+  const chooseBuff = useCallback((buff: RunBuff) => {
+    const state = stateRef.current;
+    if (!state) return;
+    applyRunBuff(state, buff);
+    setRewardChoices([]);
+    setPhase(state.phase);
+    // Play a simple ding sound via AudioContext if available
+    try {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.4);
+    } catch {}
+  }, []);
 
   // Game loop
   useEffect(() => {
@@ -124,18 +150,40 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         update(state);
         render(ctx, state);
 
-        // Sync React state (throttled)
         setHp(state.player.hp);
         setMaxHp(state.player.maxHp);
         setDashCd(state.player.dashCooldown);
         setUltCd(state.player.ultimateCooldown);
         setRunGold(state.goldCollected);
         setFloor(state.floor);
+        setPlayerShield(state.player.shield);
+      }
+
+      // Also render on reward phase (paused)
+      if (state && state.phase === 'reward') {
+        render(ctx, state);
       }
 
       if (state && state.phase !== lastPhase) {
         lastPhase = state.phase;
         setPhase(state.phase);
+        if (state.phase === 'reward') {
+          setRewardChoices([...state.rewardChoices]);
+          // Ding sound on reward screen open
+          try {
+            const ac = new AudioContext();
+            const osc = ac.createOscillator();
+            const gain = ac.createGain();
+            osc.connect(gain);
+            gain.connect(ac.destination);
+            osc.frequency.setValueAtTime(660, ac.currentTime);
+            osc.frequency.setValueAtTime(990, ac.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.25, ac.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.5);
+            osc.start(ac.currentTime);
+            osc.stop(ac.currentTime + 0.5);
+          } catch {}
+        }
         if (state.phase === 'gameover' || state.phase === 'victory') {
           savedGoldRef.current += state.goldCollected;
           setGold(savedGoldRef.current);
@@ -159,7 +207,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   }, [canvasRef, saveData]);
 
   return {
-    phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor,
-    startRun, returnToLobby, buyUpgrade, upgrades: upgradesRef.current,
+    phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
+    startRun, returnToLobby, buyUpgrade, chooseBuff, upgrades: upgradesRef.current,
   };
 }
