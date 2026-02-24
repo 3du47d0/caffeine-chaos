@@ -161,6 +161,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         setPlayerShield(state.player.shield);
         setRunTimer(state.runTimer);
         setRoomTimes([...state.roomTimes]);
+      }
 
       // Also render on reward phase (paused)
       if (state && state.phase === 'reward') {
