@@ -510,6 +510,41 @@ function drawTransitionFade(ctx: CanvasRenderingContext2D, state: GameState) {
   }
 }
 
+function formatTime(frames: number): string {
+  const totalSeconds = Math.floor(frames / 60);
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+function drawRunTimer(ctx: CanvasRenderingContext2D, state: GameState) {
+  const timeStr = formatTime(state.runTimer);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(CANVAS_WIDTH / 2 - 50, 4, 100, 22);
+  ctx.strokeStyle = '#D4A03A';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(CANVAS_WIDTH / 2 - 50, 4, 100, 22);
+  ctx.fillStyle = '#FFD700';
+  ctx.font = '12px "Press Start 2P", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(`⏱ ${timeStr}`, CANVAS_WIDTH / 2, 20);
+}
+
+function drawFastBrew(ctx: CanvasRenderingContext2D, state: GameState) {
+  if (state.fastBrewTimer <= 0) return;
+  const alpha = Math.min(1, state.fastBrewTimer / 30);
+  const yOffset = (120 - state.fastBrewTimer) * 0.5;
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#FFD700';
+  ctx.font = 'bold 18px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('⚡ FAST BREW! ⚡', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 90 - yOffset);
+  ctx.font = '11px monospace';
+  ctx.fillStyle = '#FFF';
+  ctx.fillText('Café Rápido!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 72 - yOffset);
+  ctx.globalAlpha = 1;
+}
+
 export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.save();
 
@@ -549,6 +584,8 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.fillText(`Andar ${state.floor + 1}`, 50, 42);
 
   drawClearMessage(ctx, state);
+  drawFastBrew(ctx, state);
+  drawRunTimer(ctx, state);
   drawTransitionFade(ctx, state);
 
   ctx.restore();

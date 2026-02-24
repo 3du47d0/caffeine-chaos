@@ -86,6 +86,10 @@ export function createInitialState(upgrades: Upgrades): GameState {
     transitionTimer: 0,
     transitionTarget: null,
     rewardChoices: [],
+    runTimer: 0,
+    roomTimer: 0,
+    roomTimes: [],
+    fastBrewTimer: 0,
   };
 }
 
@@ -297,6 +301,7 @@ export function update(state: GameState): GameState {
       state.projectiles = [];
       state.exitPortal = null;
       state.clearMessageTimer = 0;
+      state.roomTimer = 0; // reset room timer for new room
       // Restore shield per room if buff active
       if (state.runBuffs.leite_aveia > 0) {
         state.player.shield = true;
@@ -308,7 +313,10 @@ export function update(state: GameState): GameState {
     return state;
   }
 
-  if (state.clearMessageTimer > 0) state.clearMessageTimer--;
+  // Timer updates
+  state.runTimer++;
+  state.roomTimer++;
+  if (state.fastBrewTimer > 0) state.fastBrewTimer--;
 
   const { player, keys } = state;
   const room = state.rooms[state.currentRoom];
@@ -571,6 +579,16 @@ export function update(state: GameState): GameState {
     state.roomsCleared++;
     state.clearMessageTimer = 120;
     spawnParticles(state, { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 }, '#FFD700', 20, 5);
+
+    // Record room time
+    const roomTime = state.roomTimer;
+    state.roomTimes.push({ room: state.currentRoom, floor: state.floor, timeFrames: roomTime });
+    state.roomTimer = 0;
+
+    // Fast Brew! if cleared in under 10 seconds (600 frames)
+    if (roomTime < 600) {
+      state.fastBrewTimer = 120;
+    }
 
     if (room.isBossRoom) {
       // Show reward screen before portal

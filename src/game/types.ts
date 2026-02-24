@@ -118,6 +118,12 @@ export interface RunBuffs {
   descaf: number;
 }
 
+export interface RoomTime {
+  room: number;
+  floor: number;
+  timeFrames: number; // in frames (60fps)
+}
+
 export interface GameState {
   phase: 'lobby' | 'playing' | 'reward' | 'gameover' | 'victory';
   player: Player;
@@ -142,6 +148,11 @@ export interface GameState {
   transitionTimer: number;
   transitionTarget: { floor: number; room: number } | null;
   rewardChoices: RunBuff[];
+  // Timer system
+  runTimer: number; // total frames elapsed during gameplay
+  roomTimer: number; // frames in current room
+  roomTimes: RoomTime[]; // completed room times
+  fastBrewTimer: number; // countdown to show "Fast Brew!" message
 }
 
 export interface Particle {
