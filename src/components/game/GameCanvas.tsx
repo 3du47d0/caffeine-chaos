@@ -10,6 +10,7 @@ const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
+    runTimer, roomTimes,
     startRun, returnToLobby, buyUpgrade, chooseBuff, upgrades,
   } = useGame(canvasRef);
 
@@ -50,7 +51,10 @@ const GameCanvas: React.FC = () => {
             <GameOver
               victory={phase === 'victory'}
               goldCollected={runGold}
+              runTimer={runTimer}
+              roomTimes={roomTimes}
               onReturnToLobby={returnToLobby}
+              onRestart={startRun}
             />
           )}
         </div>

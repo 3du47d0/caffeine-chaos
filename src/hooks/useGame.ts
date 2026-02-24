@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
-import { GameState, Upgrades, RunBuff } from '../game/types';
+import { GameState, Upgrades, RunBuff, RoomTime } from '../game/types';
 import { createInitialState, update, applyRunBuff } from '../game/engine';
 import { render } from '../game/renderer';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
@@ -17,6 +17,8 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const [floor, setFloor] = useState(0);
   const [rewardChoices, setRewardChoices] = useState<RunBuff[]>([]);
   const [playerShield, setPlayerShield] = useState(false);
+  const [runTimer, setRunTimer] = useState(0);
+  const [roomTimes, setRoomTimes] = useState<RoomTime[]>([]);
 
   const savedGoldRef = useRef(0);
   const upgradesRef = useRef<Upgrades>({
@@ -157,7 +159,8 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         setRunGold(state.goldCollected);
         setFloor(state.floor);
         setPlayerShield(state.player.shield);
-      }
+        setRunTimer(state.runTimer);
+        setRoomTimes([...state.roomTimes]);
 
       // Also render on reward phase (paused)
       if (state && state.phase === 'reward') {
@@ -208,6 +211,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
   return {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
+    runTimer, roomTimes,
     startRun, returnToLobby, buyUpgrade, chooseBuff, upgrades: upgradesRef.current,
   };
 }
