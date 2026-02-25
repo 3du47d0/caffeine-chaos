@@ -1,8 +1,9 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { GameState, Upgrades, RunBuff, RoomTime } from '../game/types';
 import { createInitialState, update, applyRunBuff } from '../game/engine';
 import { render } from '../game/renderer';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
+import { InputManager, getPerformanceTier, getParticleMultiplier } from '../game/input';
 
 export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const stateRef = useRef<GameState | null>(null);
@@ -28,6 +29,10 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     dashCdrBonus: 0,
   });
 
+  const inputManager = useMemo(() => new InputManager(), []);
+  const perfTier = useMemo(() => getPerformanceTier(), []);
+  const particleMult = useMemo(() => getParticleMultiplier(perfTier), [perfTier]);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem('cafe_chaos_save');
@@ -49,13 +54,14 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
   const startRun = useCallback(() => {
     const state = createInitialState(upgradesRef.current);
+    state.particleMultiplier = particleMult;
     stateRef.current = state;
     setPhase('playing');
     setHp(state.player.hp);
     setMaxHp(state.player.maxHp);
     setRewardChoices([]);
     setPlayerShield(false);
-  }, []);
+  }, [particleMult]);
 
   const returnToLobby = useCallback(() => {
     const state = stateRef.current;
@@ -87,7 +93,6 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     applyRunBuff(state, buff);
     setRewardChoices([]);
     setPhase(state.phase);
-    // Play a simple ding sound via AudioContext if available
     try {
       const ctx = new AudioContext();
       const osc = ctx.createOscillator();
@@ -110,45 +115,25 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const state = stateRef.current;
-      if (state) state.keys.add(e.key.toLowerCase());
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      const state = stateRef.current;
-      if (state) state.keys.delete(e.key.toLowerCase());
-    };
-    const handleMouseMove = (e: MouseEvent) => {
-      const state = stateRef.current;
-      if (!state) return;
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = CANVAS_WIDTH / rect.width;
-      const scaleY = CANVAS_HEIGHT / rect.height;
-      state.mousePos = {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY,
-      };
-    };
-    const handleMouseDown = () => {
-      const state = stateRef.current;
-      if (state) state.mouseDown = true;
-    };
-    const handleMouseUp = () => {
-      const state = stateRef.current;
-      if (state) state.mouseDown = false;
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    canvas.addEventListener('mousemove', handleMouseMove);
-    canvas.addEventListener('mousedown', handleMouseDown);
-    canvas.addEventListener('mouseup', handleMouseUp);
+    inputManager.attach(canvas, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     let lastPhase = '';
 
     const loop = () => {
       const state = stateRef.current;
       if (state && state.phase === 'playing') {
+        // Feed input into game state
+        const input = inputManager.getInput(state.player.pos);
+        state.keys.clear();
+        if (input.moveX < -0.3) state.keys.add('a');
+        if (input.moveX > 0.3) state.keys.add('d');
+        if (input.moveY < -0.3) state.keys.add('w');
+        if (input.moveY > 0.3) state.keys.add('s');
+        if (input.dash) state.keys.add(' ');
+        if (input.ultimate) state.keys.add('q');
+        state.mousePos = { x: input.aimX, y: input.aimY };
+        state.mouseDown = input.shoot;
+
         update(state);
         render(ctx, state);
 
@@ -173,7 +158,6 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         setPhase(state.phase);
         if (state.phase === 'reward') {
           setRewardChoices([...state.rewardChoices]);
-          // Ding sound on reward screen open
           try {
             const ac = new AudioContext();
             const osc = ac.createOscillator();
@@ -202,17 +186,13 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
     return () => {
       cancelAnimationFrame(animFrameRef.current);
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      canvas.removeEventListener('mousemove', handleMouseMove);
-      canvas.removeEventListener('mousedown', handleMouseDown);
-      canvas.removeEventListener('mouseup', handleMouseUp);
+      inputManager.detach();
     };
-  }, [canvasRef, saveData]);
+  }, [canvasRef, saveData, inputManager]);
 
   return {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
-    runTimer, roomTimes,
+    runTimer, roomTimes, inputManager,
     startRun, returnToLobby, buyUpgrade, chooseBuff, upgrades: upgradesRef.current,
   };
 }

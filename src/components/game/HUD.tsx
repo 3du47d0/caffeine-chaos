@@ -19,10 +19,10 @@ const HUD: React.FC<HUDProps> = ({ hp, maxHp, gold, dashCd, ultCd, floor, shield
   const ultPercent = ultReady ? 1 : 1 - ultCd / PLAYER_ULTIMATE_COOLDOWN;
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 pointer-events-none p-4 flex items-end justify-between">
+    <div className="absolute bottom-0 left-0 right-0 pointer-events-none p-2 sm:p-4 flex items-end justify-between">
       {/* Health - Coffee Mug */}
-      <div className="flex items-end gap-3">
-        <div className="relative w-16 h-20">
+      <div className="flex items-end gap-2 sm:gap-3">
+        <div className="relative w-10 h-14 sm:w-16 sm:h-20">
           <div className="absolute inset-0 rounded-b-lg pixel-border bg-coffee-dark overflow-hidden">
             <div
               className="absolute bottom-0 left-0 right-0 transition-all duration-200"
@@ -41,49 +41,48 @@ const HUD: React.FC<HUDProps> = ({ hp, maxHp, gold, dashCd, ultCd, floor, shield
               </div>
             )}
           </div>
-          <div className="absolute right-[-10px] top-4 w-3 h-8 border-2 border-primary rounded-r-full" />
-          {/* Shield indicator */}
+          <div className="absolute right-[-8px] sm:right-[-10px] top-3 sm:top-4 w-2 h-6 sm:w-3 sm:h-8 border-2 border-primary rounded-r-full" />
           {shield && (
-            <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-sm animate-pulse" title="Escudo ativo">
+            <div className="absolute -top-4 sm:-top-5 left-1/2 -translate-x-1/2 text-xs sm:text-sm animate-pulse" title="Escudo ativo">
               🛡️
             </div>
           )}
         </div>
-        <div className="font-pixel text-xs text-foreground">
+        <div className="font-pixel text-foreground" style={{ fontSize: '8px' }}>
           {Math.max(0, Math.ceil(hp))}/{maxHp}
         </div>
       </div>
 
       {/* Gold counter */}
-      <div className="flex items-center gap-2 font-pixel text-sm">
+      <div className="flex items-center gap-1 sm:gap-2 font-pixel text-xs sm:text-sm">
         <span className="text-coffee-gold text-glow">☕</span>
         <span className="text-coffee-gold">{gold}</span>
       </div>
 
       {/* Abilities */}
-      <div className="flex gap-3">
-        <div className="relative w-12 h-12 pixel-border rounded-lg overflow-hidden bg-coffee-dark flex items-center justify-center">
+      <div className="flex gap-2 sm:gap-3">
+        <div className="relative w-9 h-9 sm:w-12 sm:h-12 pixel-border rounded-lg overflow-hidden bg-coffee-dark flex items-center justify-center">
           <div
             className="absolute bottom-0 left-0 right-0 bg-secondary/50"
             style={{ height: `${dashPercent * 100}%` }}
           />
-          <span className="relative font-pixel text-xs text-foreground">
+          <span className="relative font-pixel text-foreground" style={{ fontSize: '10px' }}>
             {dashReady ? '💨' : `${Math.ceil(dashCd / 60)}s`}
           </span>
-          <span className="absolute bottom-0.5 font-pixel text-foreground/50" style={{ fontSize: '6px' }}>
+          <span className="absolute bottom-0.5 font-pixel text-foreground/50 hidden sm:block" style={{ fontSize: '6px' }}>
             ESPAÇO
           </span>
         </div>
 
-        <div className="relative w-12 h-12 pixel-border rounded-lg overflow-hidden bg-coffee-dark flex items-center justify-center">
+        <div className="relative w-9 h-9 sm:w-12 sm:h-12 pixel-border rounded-lg overflow-hidden bg-coffee-dark flex items-center justify-center">
           <div
             className="absolute bottom-0 left-0 right-0 bg-primary/30"
             style={{ height: `${ultPercent * 100}%` }}
           />
-          <span className="relative font-pixel text-xs text-foreground">
+          <span className="relative font-pixel text-foreground" style={{ fontSize: '10px' }}>
             {ultReady ? '☕' : `${Math.ceil(ultCd / 60)}s`}
           </span>
-          <span className="absolute bottom-0.5 font-pixel text-foreground/50" style={{ fontSize: '6px' }}>
+          <span className="absolute bottom-0.5 font-pixel text-foreground/50 hidden sm:block" style={{ fontSize: '6px' }}>
             Q
           </span>
         </div>
