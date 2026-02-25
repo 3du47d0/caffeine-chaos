@@ -27,35 +27,35 @@ const GameOver: React.FC<GameOverProps> = ({ victory, goldCollected, runTimer, r
     : null;
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-background/90 z-10 overflow-y-auto">
-      <div className="text-center pixel-border rounded-xl p-6 bg-card max-w-md w-full mx-4 my-4">
+    <div className="absolute inset-0 flex items-center justify-center bg-background/90 z-10 overflow-y-auto p-2">
+      <div className="text-center pixel-border rounded-xl p-4 sm:p-6 bg-card max-w-sm sm:max-w-md w-full mx-2 my-2">
         {victory ? (
           <>
-            <div className="text-5xl mb-3">☕🏆</div>
-            <h2 className="font-pixel text-xl text-primary text-glow mb-1">VITÓRIA!</h2>
-            <p className="font-retro text-base text-muted-foreground mb-2">
+            <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">☕🏆</div>
+            <h2 className="font-pixel text-base sm:text-xl text-primary text-glow mb-1">VITÓRIA!</h2>
+            <p className="font-retro text-sm sm:text-base text-muted-foreground mb-2">
               O Rei Descafeinado foi derrotado!
             </p>
           </>
         ) : (
           <>
-            <div className="text-5xl mb-3">💀☕</div>
-            <h2 className="font-pixel text-xl text-accent mb-1">GAME OVER</h2>
-            <p className="font-retro text-base text-muted-foreground mb-2">
+            <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">💀☕</div>
+            <h2 className="font-pixel text-base sm:text-xl text-accent mb-1">GAME OVER</h2>
+            <p className="font-retro text-sm sm:text-base text-muted-foreground mb-2">
               Você ficou sem cafeína...
             </p>
           </>
         )}
 
-        <div className="font-pixel text-sm text-coffee-gold my-3">
+        <div className="font-pixel text-xs sm:text-sm text-coffee-gold my-2 sm:my-3">
           +{goldCollected} Grãos de Ouro ✦
         </div>
 
         {/* Run Summary */}
-        <div className="bg-background/60 rounded-lg p-4 mb-4 text-left">
-          <h3 className="font-pixel text-xs text-primary mb-3 text-center">☕ RESUMO DA CAFETERIA</h3>
+        <div className="bg-background/60 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4 text-left">
+          <h3 className="font-pixel text-primary mb-2 sm:mb-3 text-center" style={{ fontSize: '10px' }}>☕ RESUMO DA CAFETERIA</h3>
 
-          <div className="flex justify-between font-pixel text-xs text-foreground mb-2">
+          <div className="flex justify-between font-pixel text-foreground mb-2" style={{ fontSize: '10px' }}>
             <span>Tempo Total:</span>
             <span className="text-coffee-gold">{formatTime(runTimer)}</span>
           </div>
@@ -65,7 +65,7 @@ const GameOver: React.FC<GameOverProps> = ({ victory, goldCollected, runTimer, r
               <div className="font-pixel text-foreground/60 mb-1" style={{ fontSize: '8px' }}>
                 SALAS LIMPAS
               </div>
-              <div className="max-h-28 overflow-y-auto space-y-0.5">
+              <div className="max-h-24 sm:max-h-28 overflow-y-auto space-y-0.5">
                 {roomTimes.map((rt, i) => {
                   const isBest = bestRoom && rt === bestRoom;
                   return (
@@ -91,18 +91,20 @@ const GameOver: React.FC<GameOverProps> = ({ victory, goldCollected, runTimer, r
           )}
         </div>
 
-        <div className="flex gap-3 justify-center">
+        <div className="flex gap-2 sm:gap-3 justify-center flex-col sm:flex-row">
           <button
             onClick={onRestart}
-            className="font-pixel text-sm px-5 py-3 bg-secondary text-secondary-foreground rounded-lg
-                       hover:scale-105 transition-transform pixel-border"
+            className="font-pixel px-4 sm:px-5 py-2 sm:py-3 bg-secondary text-secondary-foreground rounded-lg
+                       hover:scale-105 active:scale-95 transition-transform pixel-border"
+            style={{ fontSize: '11px' }}
           >
             REINICIAR RUN
           </button>
           <button
             onClick={onReturnToLobby}
-            className="font-pixel text-sm px-5 py-3 bg-primary text-primary-foreground rounded-lg
-                       hover:scale-105 transition-transform pixel-border"
+            className="font-pixel px-4 sm:px-5 py-2 sm:py-3 bg-primary text-primary-foreground rounded-lg
+                       hover:scale-105 active:scale-95 transition-transform pixel-border"
+            style={{ fontSize: '11px' }}
           >
             VOLTAR AO CAFÉ
           </button>

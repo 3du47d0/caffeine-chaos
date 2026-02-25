@@ -25,7 +25,8 @@ function clamp(v: number, min: number, max: number): number {
 }
 
 function spawnParticles(state: GameState, pos: Vec2, color: string, count: number, speed: number = 3) {
-  for (let i = 0; i < count; i++) {
+  const adjustedCount = Math.max(1, Math.round(count * (state.particleMultiplier ?? 1)));
+  for (let i = 0; i < adjustedCount; i++) {
     const angle = Math.random() * Math.PI * 2;
     const spd = Math.random() * speed;
     state.particles.push({
@@ -90,6 +91,7 @@ export function createInitialState(upgrades: Upgrades): GameState {
     roomTimer: 0,
     roomTimes: [],
     fastBrewTimer: 0,
+    particleMultiplier: 1,
   };
 }
 

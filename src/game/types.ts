@@ -149,10 +149,11 @@ export interface GameState {
   transitionTarget: { floor: number; room: number } | null;
   rewardChoices: RunBuff[];
   // Timer system
-  runTimer: number; // total frames elapsed during gameplay
-  roomTimer: number; // frames in current room
-  roomTimes: RoomTime[]; // completed room times
-  fastBrewTimer: number; // countdown to show "Fast Brew!" message
+  runTimer: number;
+  roomTimer: number;
+  roomTimes: RoomTime[];
+  fastBrewTimer: number;
+  particleMultiplier: number; // performance scaling
 }
 
 export interface Particle {
