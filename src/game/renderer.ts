@@ -13,10 +13,10 @@ function drawPixelCircle(ctx: CanvasRenderingContext2D, x: number, y: number, r:
   ctx.fill();
 }
 
-function drawFloor(ctx: CanvasRenderingContext2D) {
-  ctx.fillStyle = COLORS.floor;
+function drawFloor(ctx: CanvasRenderingContext2D, isSecret?: boolean) {
+  ctx.fillStyle = isSecret ? '#1A0520' : COLORS.floor;
   ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-  ctx.fillStyle = COLORS.floorTile;
+  ctx.fillStyle = isSecret ? '#250830' : COLORS.floorTile;
   for (let x = 0; x < CANVAS_WIDTH; x += 32) {
     for (let y = 0; y < CANVAS_HEIGHT; y += 32) {
       if ((x / 32 + y / 32) % 2 === 0) ctx.fillRect(x + 1, y + 1, 30, 30);
@@ -26,16 +26,20 @@ function drawFloor(ctx: CanvasRenderingContext2D) {
 
 function drawWalls(ctx: CanvasRenderingContext2D, room: Room) {
   const margin = 40;
-  drawPixelRect(ctx, 0, 0, CANVAS_WIDTH, margin, COLORS.wall);
-  drawPixelRect(ctx, 0, CANVAS_HEIGHT - margin, CANVAS_WIDTH, margin, COLORS.wall);
-  drawPixelRect(ctx, 0, 0, margin, CANVAS_HEIGHT, COLORS.wall);
-  drawPixelRect(ctx, CANVAS_WIDTH - margin, 0, margin, CANVAS_HEIGHT, COLORS.wall);
-  ctx.fillStyle = COLORS.wallHighlight;
+  const isSecret = room.isSecretBossRoom;
+  const wallColor = isSecret ? '#3D0050' : COLORS.wall;
+  const highlightColor = isSecret ? '#6B0090' : COLORS.wallHighlight;
+  
+  drawPixelRect(ctx, 0, 0, CANVAS_WIDTH, margin, wallColor);
+  drawPixelRect(ctx, 0, CANVAS_HEIGHT - margin, CANVAS_WIDTH, margin, wallColor);
+  drawPixelRect(ctx, 0, 0, margin, CANVAS_HEIGHT, wallColor);
+  drawPixelRect(ctx, CANVAS_WIDTH - margin, 0, margin, CANVAS_HEIGHT, wallColor);
+  ctx.fillStyle = highlightColor;
   ctx.fillRect(0, margin - 4, CANVAS_WIDTH, 4);
   ctx.fillRect(margin - 4, 0, 4, CANVAS_HEIGHT);
   for (const wall of room.walls) {
-    drawPixelRect(ctx, wall.x, wall.y, wall.w, wall.h, COLORS.wall);
-    ctx.fillStyle = COLORS.wallHighlight;
+    drawPixelRect(ctx, wall.x, wall.y, wall.w, wall.h, wallColor);
+    ctx.fillStyle = highlightColor;
     ctx.fillRect(wall.x, wall.y, wall.w, 3);
     ctx.fillRect(wall.x, wall.y, 3, wall.h);
   }
@@ -97,7 +101,6 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState) {
     ctx.globalAlpha = 1;
   }
 
-  // Shield ring
   if (player.shield) {
     const t = Date.now() / 300;
     ctx.strokeStyle = '#87CEEB';
@@ -184,12 +187,10 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
   const { pos, size, type, hp, maxHp, angle } = boss;
   const t = Date.now() / 300;
 
-  // Invisible steam king
   if (type === 'steam_king' && boss.invisibleTimer > 0) {
     ctx.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1;
   }
 
-  // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
   ctx.ellipse(pos.x, pos.y + size * 0.9, size * 0.8, size * 0.3, 0, 0, Math.PI * 2);
@@ -200,13 +201,11 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
 
   switch (type) {
     case 'grinder': {
-      // Rotating grinder body
       ctx.rotate(angle * 2);
       ctx.fillStyle = '#8B7355';
       ctx.beginPath();
       ctx.arc(0, 0, size, 0, Math.PI * 2);
       ctx.fill();
-      // Grinder blades
       for (let i = 0; i < 6; i++) {
         const a = (Math.PI * 2 * i) / 6;
         ctx.fillStyle = '#555';
@@ -215,12 +214,10 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
         ctx.fillRect(-4, -size, 8, size * 0.55);
         ctx.restore();
       }
-      // Center knob
       ctx.fillStyle = '#FFD700';
       ctx.beginPath();
       ctx.arc(0, 0, size * 0.28, 0, Math.PI * 2);
       ctx.fill();
-      // Angry eye
       ctx.fillStyle = '#C00';
       ctx.beginPath();
       ctx.arc(0, 0, size * 0.14, 0, Math.PI * 2);
@@ -228,7 +225,6 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
       break;
     }
     case 'steam_king': {
-      // Fluffy cloud shape
       ctx.fillStyle = '#E0E0E0';
       ctx.beginPath();
       ctx.arc(0, 0, size, 0, Math.PI * 2);
@@ -240,7 +236,6 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
       ctx.beginPath();
       ctx.arc(size * 0.4, -size * 0.2, size * 0.65, 0, Math.PI * 2);
       ctx.fill();
-      // Crown
       ctx.fillStyle = '#FFD700';
       ctx.fillRect(-size * 0.5, -size - 10, size, 12);
       ctx.beginPath();
@@ -250,10 +245,8 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
       ctx.lineTo(size * 0.3, -size - 20);
       ctx.lineTo(size * 0.5, -size - 10);
       ctx.fill();
-      // Eyes
       drawPixelCircle(ctx, -10, -6, 5, '#555');
       drawPixelCircle(ctx, 10, -6, 5, '#555');
-      // Angry brows
       ctx.strokeStyle = '#333';
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -265,25 +258,20 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
       break;
     }
     case 'overflowing_pot': {
-      // Big round pot
       ctx.fillStyle = '#4A3728';
       ctx.beginPath();
       ctx.ellipse(0, 8, size * 0.85, size * 0.7, 0, 0, Math.PI * 2);
       ctx.fill();
-      // Pot body
       ctx.fillStyle = '#5C3D2E';
       ctx.fillRect(-size * 0.75, -size * 0.4, size * 1.5, size * 0.8);
       ctx.fillStyle = '#4A3728';
       ctx.fillRect(-size * 0.75, size * 0.4, size * 1.5, size * 0.2);
-      // Spout
       ctx.fillStyle = '#3D2B1F';
       ctx.fillRect(size * 0.6, -size * 0.2, size * 0.4, size * 0.3);
-      // Overflowing coffee
       ctx.fillStyle = '#8B4513';
       ctx.beginPath();
       ctx.arc(0, -size * 0.35, size * 0.65, Math.PI, 0);
       ctx.fill();
-      // Bubbles
       for (let i = 0; i < 3; i++) {
         const bx = (i - 1) * size * 0.4;
         const by = -size * 0.5 - Math.sin(t + i) * 8;
@@ -294,7 +282,6 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
         ctx.fill();
         ctx.globalAlpha = 1;
       }
-      // Face
       drawPixelCircle(ctx, -10, -size * 0.1, 4, '#2C1810');
       drawPixelCircle(ctx, 10, -size * 0.1, 4, '#2C1810');
       ctx.strokeStyle = '#2C1810';
@@ -302,6 +289,65 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
       ctx.beginPath();
       ctx.moveTo(-8, size * 0.15); ctx.quadraticCurveTo(0, size * 0.25, 8, size * 0.15);
       ctx.stroke();
+      break;
+    }
+    case 'secret_boss': {
+      // "O Supremo Expresso" - dark purple/gold aesthetic
+      const hpRatio = hp / maxHp;
+      const pulse = 1 + Math.sin(t * 2) * 0.05;
+      
+      // Aura
+      ctx.globalAlpha = 0.3 + Math.sin(t) * 0.1;
+      const grad = ctx.createRadialGradient(0, 0, size * 0.5, 0, 0, size * 1.5 * pulse);
+      grad.addColorStop(0, hpRatio < 0.4 ? '#FF0040' : '#8B00FF');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, size * 1.5 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // Body - dark coffee with purple tint
+      ctx.fillStyle = hpRatio < 0.4 ? '#4A0020' : '#2D1B4E';
+      ctx.beginPath();
+      ctx.arc(0, 0, size * pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Inner glow
+      ctx.fillStyle = hpRatio < 0.4 ? '#FF0040' : '#6B00B0';
+      ctx.beginPath();
+      ctx.arc(0, 0, size * 0.6 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Crown of coffee
+      ctx.fillStyle = '#FFD700';
+      for (let i = 0; i < 5; i++) {
+        const ca = (Math.PI * 2 * i) / 5 + angle;
+        const cx = Math.cos(ca) * (size * 0.8);
+        const cy = Math.sin(ca) * (size * 0.8) - size * 0.3;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 8);
+        ctx.lineTo(cx - 5, cy + 4);
+        ctx.lineTo(cx + 5, cy + 4);
+        ctx.fill();
+      }
+
+      // Eyes - glowing
+      const eyeColor = hpRatio < 0.4 ? '#FF0000' : '#FFD700';
+      drawPixelCircle(ctx, -12, -8, 5, eyeColor);
+      drawPixelCircle(ctx, 12, -8, 5, eyeColor);
+      drawPixelCircle(ctx, -12, -8, 2, '#FFF');
+      drawPixelCircle(ctx, 12, -8, 2, '#FFF');
+
+      // Orbiting particles
+      for (let i = 0; i < 4; i++) {
+        const oa = t * 2 + (Math.PI * 2 * i) / 4;
+        const ox = Math.cos(oa) * (size + 15);
+        const oy = Math.sin(oa) * (size + 15);
+        ctx.globalAlpha = 0.7;
+        drawPixelCircle(ctx, ox, oy, 4, '#FFD700');
+        ctx.globalAlpha = 1;
+      }
       break;
     }
   }
@@ -320,13 +366,13 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
   const hpColor = hpRatio > 0.5 ? '#C0392B' : hpRatio > 0.25 ? '#E67E22' : '#FF0000';
   drawPixelRect(ctx, barX, barY, barW * hpRatio, barH, hpColor);
 
-  // Boss name
   const bossNames: Record<string, string> = {
     grinder: '⚙ O GRANDE MOEDOR',
     steam_king: '☁ REI DO VAPOR',
     overflowing_pot: '🍵 BULE TRANSBORDANTE',
+    secret_boss: '👑 O SUPREMO EXPRESSO',
   };
-  ctx.fillStyle = '#FFD700';
+  ctx.fillStyle = type === 'secret_boss' ? '#FF00FF' : '#FFD700';
   ctx.font = 'bold 11px monospace';
   ctx.textAlign = 'center';
   ctx.fillText(bossNames[type] || 'BOSS', pos.x, barY - 6);
@@ -334,14 +380,19 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
 
 function drawProjectile(ctx: CanvasRenderingContext2D, proj: Projectile) {
   if (proj.isBurnZone) {
-    // Draw steam/burn zone
     const t = Date.now() / 200;
     const alpha = (0.3 + Math.sin(t) * 0.1) * (proj.lifetime / 120);
     ctx.globalAlpha = alpha;
     const grad = ctx.createRadialGradient(proj.pos.x, proj.pos.y, 4, proj.pos.x, proj.pos.y, proj.size);
-    grad.addColorStop(0, '#FF6B35');
-    grad.addColorStop(0.5, '#FFD700');
-    grad.addColorStop(1, 'transparent');
+    if (proj.isVortex) {
+      grad.addColorStop(0, '#8B00FF');
+      grad.addColorStop(0.5, '#FF00FF');
+      grad.addColorStop(1, 'transparent');
+    } else {
+      grad.addColorStop(0, '#FF6B35');
+      grad.addColorStop(0.5, '#FFD700');
+      grad.addColorStop(1, 'transparent');
+    }
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.arc(proj.pos.x, proj.pos.y, proj.size, 0, Math.PI * 2);
@@ -426,10 +477,13 @@ function drawMinimap(ctx: CanvasRenderingContext2D, state: GameState) {
     const rx = startX + i * (roomSize + gap);
     const ry = startY;
     const isBossRoom = state.rooms[i].isBossRoom;
+    const isSecret = state.rooms[i].isSecretBossRoom;
     const color = i === state.currentRoom
       ? COLORS.player
       : state.rooms[i].cleared
       ? COLORS.door
+      : isSecret
+      ? '#8B00FF'
       : isBossRoom
       ? '#C0392B'
       : COLORS.doorLocked;
@@ -438,38 +492,75 @@ function drawMinimap(ctx: CanvasRenderingContext2D, state: GameState) {
       ctx.fillStyle = '#FFF';
       ctx.font = '8px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('!', rx + roomSize / 2, ry + roomSize - 2);
+      ctx.fillText(isSecret ? '★' : '!', rx + roomSize / 2, ry + roomSize - 2);
     }
   }
 }
 
 function drawExitPortal(ctx: CanvasRenderingContext2D, state: GameState) {
+  // Draw normal exit portal
   const portal = state.exitPortal;
-  if (!portal || !portal.active) return;
+  if (portal?.active) {
+    drawPortal(ctx, portal.pos.x, portal.pos.y, portal.type || 'normal');
+  }
+  // Draw secret portal
+  const secret = state.secretPortal;
+  if (secret?.active) {
+    drawPortal(ctx, secret.pos.x, secret.pos.y, 'secret');
+  }
+}
 
-  const { x, y } = portal.pos;
+function drawPortal(ctx: CanvasRenderingContext2D, x: number, y: number, type: string) {
   const t = Date.now() / 400;
   const pulse = 1 + Math.sin(t) * 0.15;
 
-  ctx.globalAlpha = 0.3 + Math.sin(t) * 0.1;
-  drawPixelCircle(ctx, x, y, 32 * pulse, '#D4A03A');
-  ctx.globalAlpha = 0.5;
-  drawPixelCircle(ctx, x, y, 22 * pulse, '#FFD700');
-  ctx.globalAlpha = 1;
-  drawPixelCircle(ctx, x, y, 14, '#FFF8E1');
-  ctx.strokeStyle = '#B8860B';
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 3; i++) {
-    const a = t * 2 + (i * Math.PI * 2) / 3;
-    ctx.beginPath();
-    ctx.arc(x, y, 10, a, a + 1.2);
-    ctx.stroke();
-  }
+  if (type === 'secret') {
+    ctx.globalAlpha = 0.3 + Math.sin(t) * 0.1;
+    drawPixelCircle(ctx, x, y, 36 * pulse, '#8B00FF');
+    ctx.globalAlpha = 0.5;
+    drawPixelCircle(ctx, x, y, 24 * pulse, '#FF00FF');
+    ctx.globalAlpha = 1;
+    drawPixelCircle(ctx, x, y, 14, '#EE82EE');
 
-  ctx.fillStyle = '#FFD700';
-  ctx.font = 'bold 10px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('☕ SAÍDA', x, y - 36);
+    ctx.fillStyle = '#FF00FF';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚔ DESAFIO', x, y - 38);
+    ctx.fillText('SECRETO', x, y - 28);
+  } else if (type === 'finish') {
+    ctx.globalAlpha = 0.3 + Math.sin(t) * 0.1;
+    drawPixelCircle(ctx, x, y, 32 * pulse, '#00CC00');
+    ctx.globalAlpha = 0.5;
+    drawPixelCircle(ctx, x, y, 22 * pulse, '#00FF00');
+    ctx.globalAlpha = 1;
+    drawPixelCircle(ctx, x, y, 14, '#90EE90');
+
+    ctx.fillStyle = '#00FF00';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('🏠 TERMINAR', x, y - 36);
+  } else {
+    ctx.globalAlpha = 0.3 + Math.sin(t) * 0.1;
+    drawPixelCircle(ctx, x, y, 32 * pulse, '#D4A03A');
+    ctx.globalAlpha = 0.5;
+    drawPixelCircle(ctx, x, y, 22 * pulse, '#FFD700');
+    ctx.globalAlpha = 1;
+    drawPixelCircle(ctx, x, y, 14, '#FFF8E1');
+
+    ctx.strokeStyle = '#B8860B';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      const a = t * 2 + (i * Math.PI * 2) / 3;
+      ctx.beginPath();
+      ctx.arc(x, y, 10, a, a + 1.2);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('☕ SAÍDA', x, y - 36);
+  }
 }
 
 function drawClearMessage(ctx: CanvasRenderingContext2D, state: GameState) {
@@ -560,8 +651,9 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   }
 
   const room = state.rooms[state.currentRoom];
+  const isSecret = room.isSecretBossRoom;
 
-  drawFloor(ctx);
+  drawFloor(ctx, isSecret);
   drawWalls(ctx, room);
   drawDoors(ctx, room);
 

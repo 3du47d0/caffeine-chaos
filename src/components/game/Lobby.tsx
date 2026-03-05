@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Upgrades } from '../../game/types';
 import { SHOP_ITEMS } from '../../game/constants';
+import AchievementsScreen from './AchievementsScreen';
 
 interface LobbyProps {
   gold: number;
@@ -9,27 +10,28 @@ interface LobbyProps {
   onBuyUpgrade: (id: keyof Upgrades, cost: number) => boolean;
   hasGamepad?: boolean;
   isTouchDevice?: boolean;
+  onToggleMusic?: () => void;
+  musicMuted?: boolean;
 }
 
-const Lobby: React.FC<LobbyProps> = ({ gold, upgrades, onStartRun, onBuyUpgrade, hasGamepad, isTouchDevice }) => {
+const Lobby: React.FC<LobbyProps> = ({ gold, upgrades, onStartRun, onBuyUpgrade, hasGamepad, isTouchDevice, onToggleMusic, musicMuted }) => {
+  const [showAchievements, setShowAchievements] = useState(false);
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4 overflow-y-auto">
+    <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-background p-3 sm:p-4 overflow-y-auto">
       <div className="max-w-lg w-full text-center px-2">
-        {/* Title */}
-        <h1 className="font-pixel text-xl sm:text-2xl md:text-3xl text-primary text-glow mb-2 leading-relaxed">
+        <h1 className="font-pixel text-lg sm:text-2xl md:text-3xl text-primary text-glow mb-2 leading-relaxed">
           ☕ CAFE CHAOS
         </h1>
-        <p className="font-pixel text-xs text-muted-foreground mb-6 sm:mb-8">The Morning Rush</p>
+        <p className="font-pixel text-xs text-muted-foreground mb-4 sm:mb-6">The Morning Rush</p>
 
-        {/* Gold */}
-        <div className="font-pixel text-sm text-coffee-gold mb-6 sm:mb-8">
+        <div className="font-pixel text-sm text-coffee-gold mb-4 sm:mb-6">
           Grãos de Ouro: {gold} ✦
         </div>
 
-        {/* Upgrades Shop */}
-        <div className="pixel-border rounded-lg p-3 sm:p-4 mb-6 sm:mb-8 bg-card">
-          <h2 className="font-pixel text-xs sm:text-sm text-primary mb-3 sm:mb-4">MELHORIAS</h2>
-          <div className="grid grid-cols-1 gap-2 sm:gap-3">
+        <div className="pixel-border rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 bg-card">
+          <h2 className="font-pixel text-xs sm:text-sm text-primary mb-3">MELHORIAS</h2>
+          <div className="grid grid-cols-1 gap-2">
             {SHOP_ITEMS.map((item) => {
               const level = upgrades[item.id];
               const maxed = level >= item.maxLevel;
@@ -41,7 +43,7 @@ const Lobby: React.FC<LobbyProps> = ({ gold, upgrades, onStartRun, onBuyUpgrade,
                   key={item.id}
                   onClick={() => !maxed && canAfford && onBuyUpgrade(item.id, cost)}
                   disabled={maxed || !canAfford}
-                  className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-md text-left transition-all ${
+                  className={`flex items-center gap-2 p-2 sm:p-3 rounded-md text-left transition-all ${
                     maxed
                       ? 'bg-muted/50 opacity-50 cursor-not-allowed'
                       : canAfford
@@ -49,11 +51,11 @@ const Lobby: React.FC<LobbyProps> = ({ gold, upgrades, onStartRun, onBuyUpgrade,
                       : 'bg-muted/30 opacity-60 cursor-not-allowed'
                   }`}
                 >
-                  <span className="text-xl sm:text-2xl">{item.icon}</span>
+                  <span className="text-xl">{item.icon}</span>
                   <div className="flex-1 min-w-0">
                     <div className="font-pixel text-xs text-foreground truncate">{item.name}</div>
-                    <div className="font-retro text-xs sm:text-sm text-muted-foreground">{item.description}</div>
-                    <div className="font-pixel text-muted-foreground mt-1" style={{ fontSize: '8px' }}>
+                    <div className="font-retro text-xs text-muted-foreground">{item.description}</div>
+                    <div className="font-pixel text-muted-foreground mt-0.5" style={{ fontSize: '8px' }}>
                       Nv. {level}/{item.maxLevel}
                     </div>
                   </div>
@@ -69,22 +71,30 @@ const Lobby: React.FC<LobbyProps> = ({ gold, upgrades, onStartRun, onBuyUpgrade,
           </div>
         </div>
 
-        {/* Start button */}
-        <button
-          onClick={onStartRun}
-          className="font-pixel text-xs sm:text-sm px-6 sm:px-8 py-3 sm:py-4 bg-primary text-primary-foreground rounded-lg
-                     hover:scale-105 active:scale-95 transition-transform pixel-border
-                     hover:shadow-[0_0_30px_hsl(var(--coffee-gold)/0.4)]"
-        >
-          ▶ INICIAR RUN
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center mb-4">
+          <button
+            onClick={onStartRun}
+            className="font-pixel text-xs sm:text-sm px-6 py-3 bg-primary text-primary-foreground rounded-lg
+                       hover:scale-105 active:scale-95 transition-transform pixel-border
+                       hover:shadow-[0_0_30px_hsl(var(--coffee-gold)/0.4)]"
+          >
+            ▶ INICIAR RUN
+          </button>
+          <button
+            onClick={() => setShowAchievements(true)}
+            className="font-pixel text-xs px-4 py-2 sm:py-3 bg-secondary text-secondary-foreground rounded-lg
+                       hover:scale-105 active:scale-95 transition-transform pixel-border"
+          >
+            🏆 CONQUISTAS
+          </button>
+        </div>
 
-        {/* Controls */}
-        <div className="mt-6 sm:mt-8 font-retro text-xs sm:text-sm text-muted-foreground space-y-1">
+        <div className="mt-4 font-retro text-xs text-muted-foreground space-y-1">
           {isTouchDevice ? (
             <>
-              <p>🕹️ Joystick Virtual - Mover</p>
-              <p>ATK - Atirar | 💨 - Dash | ☕ - Ultimate</p>
+              <p>🕹️ Joystick Esquerdo - Mover</p>
+              <p>🎯 Joystick Direito - Mirar e Atirar</p>
+              <p>💨 Dash | ☕ Ultimate</p>
             </>
           ) : (
             <>
@@ -93,10 +103,23 @@ const Lobby: React.FC<LobbyProps> = ({ gold, upgrades, onStartRun, onBuyUpgrade,
             </>
           )}
           {hasGamepad && (
-            <p className="text-primary mt-2">🎮 Controle detectado! Analógicos + A/B/LB/RB</p>
+            <p className="text-primary mt-2">🎮 Controle detectado!</p>
           )}
         </div>
+
+        {onToggleMusic && (
+          <button
+            onClick={onToggleMusic}
+            className="mt-3 font-pixel text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {musicMuted ? '🔇 Música OFF' : '🔊 Música ON'}
+          </button>
+        )}
       </div>
+
+      {showAchievements && (
+        <AchievementsScreen onClose={() => setShowAchievements(false)} />
+      )}
     </div>
   );
 };
