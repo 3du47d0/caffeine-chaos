@@ -19,11 +19,11 @@ export interface Player extends Entity {
   invincibleTimer: number;
   facing: Vec2;
   shootCooldown: number;
-  shield: boolean; // Leite de Aveia buff
+  shield: boolean;
 }
 
 export type EnemyType = 'croissant' | 'angry_cup' | 'milk_blob' | 'drone';
-export type BossType = 'grinder' | 'steam_king' | 'overflowing_pot';
+export type BossType = 'grinder' | 'steam_king' | 'overflowing_pot' | 'secret_boss';
 
 export interface Enemy extends Entity {
   type: EnemyType;
@@ -37,12 +37,16 @@ export interface Boss extends Entity {
   type: BossType;
   shootTimer: number;
   moveTimer: number;
-  phase: number; // attack pattern phase
-  angle: number; // for rotation-based attacks
-  invisibleTimer: number; // steam_king invisibility
-  summonTimer: number; // overflowing_pot summon timer
+  phase: number;
+  angle: number;
+  invisibleTimer: number;
+  summonTimer: number;
   dropGold: number;
   burnTimer?: number;
+  enrageTimer?: number;
+  teleportTimer?: number;
+  shieldActive?: boolean;
+  shieldHp?: number;
 }
 
 export interface Projectile {
@@ -52,7 +56,8 @@ export interface Projectile {
   damage: number;
   friendly: boolean;
   lifetime: number;
-  isBurnZone?: boolean; // steam_king floor hazard
+  isBurnZone?: boolean;
+  isVortex?: boolean;
 }
 
 export interface Pickup {
@@ -73,12 +78,13 @@ export interface Room {
   doors: Door[];
   walls: Wall[];
   isBossRoom: boolean;
+  isSecretBossRoom?: boolean;
 }
 
 export interface Door {
   pos: Vec2;
   direction: 'north' | 'south' | 'east' | 'west';
-  leadsTo: number; // room index
+  leadsTo: number;
 }
 
 export interface Wall {
@@ -91,16 +97,17 @@ export interface Wall {
 export interface ExitPortal {
   pos: Vec2;
   active: boolean;
+  type?: 'normal' | 'finish' | 'secret';
 }
 
 // ---- Run Buff System ----
 export type RunBuffId =
-  | 'torrado'      // +20% damage
-  | 'leite_aveia'  // shield per room
-  | 'chantilly'    // +20% fire rate
-  | 'termo'        // +50 max hp
-  | 'canela'       // burn chance
-  | 'descaf';      // +20% speed & dash range
+  | 'torrado'
+  | 'leite_aveia'
+  | 'chantilly'
+  | 'termo'
+  | 'canela'
+  | 'descaf';
 
 export interface RunBuff {
   id: RunBuffId;
@@ -121,11 +128,45 @@ export interface RunBuffs {
 export interface RoomTime {
   room: number;
   floor: number;
-  timeFrames: number; // in frames (60fps)
+  timeFrames: number;
+}
+
+// ---- Achievement System ----
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  requirement: number;
+  rewardName: string;
+  rewardDescription: string;
+  rewardType: 'damage' | 'hp' | 'speed' | 'gold' | 'dash' | 'special';
+  rewardValue: number;
+}
+
+export interface AchievementProgress {
+  [achievementId: string]: {
+    current: number;
+    unlocked: boolean;
+  };
+}
+
+// ---- Stats tracked per run for achievements ----
+export interface RunStats {
+  enemiesKilled: number;
+  damageTaken: number;
+  bossesDefeated: number;
+  roomsCleared: number;
+  goldCollected: number;
+  dashesUsed: number;
+  ultimatesUsed: number;
+  perfectRooms: number; // rooms cleared without taking damage
+  fastRooms: number; // rooms cleared in < 10 seconds
+  totalDamageDealt: number;
 }
 
 export interface GameState {
-  phase: 'lobby' | 'playing' | 'reward' | 'gameover' | 'victory';
+  phase: 'lobby' | 'playing' | 'reward' | 'gameover' | 'victory' | 'secret_victory';
   player: Player;
   rooms: Room[];
   currentRoom: number;
@@ -144,16 +185,21 @@ export interface GameState {
   screenShake: number;
   damageFlash: number;
   exitPortal: ExitPortal | null;
+  secretPortal: ExitPortal | null;
   clearMessageTimer: number;
   transitionTimer: number;
   transitionTarget: { floor: number; room: number } | null;
   rewardChoices: RunBuff[];
-  // Timer system
   runTimer: number;
   roomTimer: number;
   roomTimes: RoomTime[];
   fastBrewTimer: number;
-  particleMultiplier: number; // performance scaling
+  particleMultiplier: number;
+  runStats: RunStats;
+  roomDamageTaken: number; // track damage per room for perfect room
+  isBossRoom: boolean;
+  secretBossDefeated: boolean;
+  showSecretPortals: boolean;
 }
 
 export interface Particle {
