@@ -3,6 +3,7 @@ import { RoomTime } from '../../game/types';
 
 interface GameOverProps {
   victory: boolean;
+  secretVictory?: boolean;
   goldCollected: number;
   runTimer: number;
   roomTimes: RoomTime[];
@@ -21,62 +22,60 @@ function formatSeconds(frames: number): string {
   return `${(frames / 60).toFixed(1)}s`;
 }
 
-const GameOver: React.FC<GameOverProps> = ({ victory, goldCollected, runTimer, roomTimes, onReturnToLobby, onRestart }) => {
+const GameOver: React.FC<GameOverProps> = ({ victory, secretVictory, goldCollected, runTimer, roomTimes, onReturnToLobby, onRestart }) => {
   const bestRoom = roomTimes.length > 0
     ? roomTimes.reduce((best, rt) => rt.timeFrames < best.timeFrames ? rt : best)
     : null;
 
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-background/90 z-10 overflow-y-auto p-2">
-      <div className="text-center pixel-border rounded-xl p-4 sm:p-6 bg-card max-w-sm sm:max-w-md w-full mx-2 my-2">
-        {victory ? (
+      <div className="text-center pixel-border rounded-xl p-4 sm:p-6 bg-card max-w-sm w-full mx-2 my-2">
+        {secretVictory ? (
           <>
-            <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">☕🏆</div>
+            <div className="text-4xl sm:text-5xl mb-2">👑✨</div>
+            <h2 className="font-pixel text-base sm:text-xl text-accent text-glow mb-1">SUPREMA VITÓRIA!</h2>
+            <p className="font-retro text-sm text-muted-foreground mb-2">
+              O Supremo Expresso foi derrotado!<br />
+              Você é o verdadeiro Mestre do Café!
+            </p>
+          </>
+        ) : victory ? (
+          <>
+            <div className="text-4xl sm:text-5xl mb-2">☕🏆</div>
             <h2 className="font-pixel text-base sm:text-xl text-primary text-glow mb-1">VITÓRIA!</h2>
-            <p className="font-retro text-sm sm:text-base text-muted-foreground mb-2">
+            <p className="font-retro text-sm text-muted-foreground mb-2">
               O Rei Descafeinado foi derrotado!
             </p>
           </>
         ) : (
           <>
-            <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">💀☕</div>
+            <div className="text-4xl sm:text-5xl mb-2">💀☕</div>
             <h2 className="font-pixel text-base sm:text-xl text-accent mb-1">GAME OVER</h2>
-            <p className="font-retro text-sm sm:text-base text-muted-foreground mb-2">
+            <p className="font-retro text-sm text-muted-foreground mb-2">
               Você ficou sem cafeína...
             </p>
           </>
         )}
 
-        <div className="font-pixel text-xs sm:text-sm text-coffee-gold my-2 sm:my-3">
-          +{goldCollected} Grãos de Ouro ✦
+        <div className="font-pixel text-xs text-coffee-gold my-2">
+          +{goldCollected}{secretVictory ? '+50 bônus' : ''} Grãos de Ouro ✦
         </div>
 
-        {/* Run Summary */}
-        <div className="bg-background/60 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4 text-left">
-          <h3 className="font-pixel text-primary mb-2 sm:mb-3 text-center" style={{ fontSize: '10px' }}>☕ RESUMO DA CAFETERIA</h3>
-
+        <div className="bg-background/60 rounded-lg p-3 mb-3 text-left">
+          <h3 className="font-pixel text-primary mb-2 text-center" style={{ fontSize: '10px' }}>☕ RESUMO</h3>
           <div className="flex justify-between font-pixel text-foreground mb-2" style={{ fontSize: '10px' }}>
             <span>Tempo Total:</span>
             <span className="text-coffee-gold">{formatTime(runTimer)}</span>
           </div>
-
           {roomTimes.length > 0 && (
             <div className="border-t border-muted pt-2 mt-2">
-              <div className="font-pixel text-foreground/60 mb-1" style={{ fontSize: '8px' }}>
-                SALAS LIMPAS
-              </div>
-              <div className="max-h-24 sm:max-h-28 overflow-y-auto space-y-0.5">
+              <div className="font-pixel text-foreground/60 mb-1" style={{ fontSize: '8px' }}>SALAS LIMPAS</div>
+              <div className="max-h-20 overflow-y-auto space-y-0.5">
                 {roomTimes.map((rt, i) => {
                   const isBest = bestRoom && rt === bestRoom;
                   return (
-                    <div
-                      key={i}
-                      className={`flex justify-between font-pixel text-foreground ${isBest ? 'text-coffee-gold' : ''}`}
-                      style={{ fontSize: '9px' }}
-                    >
-                      <span>
-                        {isBest && '⚡ '}A{rt.floor + 1} Sala {rt.room + 1}
-                      </span>
+                    <div key={i} className={`flex justify-between font-pixel text-foreground ${isBest ? 'text-coffee-gold' : ''}`} style={{ fontSize: '9px' }}>
+                      <span>{isBest && '⚡ '}A{rt.floor + 1} S{rt.room + 1}</span>
                       <span>{formatSeconds(rt.timeFrames)}</span>
                     </div>
                   );
@@ -84,27 +83,27 @@ const GameOver: React.FC<GameOverProps> = ({ victory, goldCollected, runTimer, r
               </div>
               {bestRoom && (
                 <div className="font-pixel text-coffee-gold mt-2 text-center" style={{ fontSize: '9px' }}>
-                  ⚡ Melhor: A{bestRoom.floor + 1} Sala {bestRoom.room + 1} — {formatSeconds(bestRoom.timeFrames)}
+                  ⚡ Melhor: A{bestRoom.floor + 1} S{bestRoom.room + 1} — {formatSeconds(bestRoom.timeFrames)}
                 </div>
               )}
             </div>
           )}
         </div>
 
-        <div className="flex gap-2 sm:gap-3 justify-center flex-col sm:flex-row">
+        <div className="flex gap-2 justify-center flex-col sm:flex-row">
           <button
             onClick={onRestart}
-            className="font-pixel px-4 sm:px-5 py-2 sm:py-3 bg-secondary text-secondary-foreground rounded-lg
+            className="font-pixel px-4 py-2 bg-secondary text-secondary-foreground rounded-lg
                        hover:scale-105 active:scale-95 transition-transform pixel-border"
-            style={{ fontSize: '11px' }}
+            style={{ fontSize: '10px' }}
           >
-            REINICIAR RUN
+            REINICIAR
           </button>
           <button
             onClick={onReturnToLobby}
-            className="font-pixel px-4 sm:px-5 py-2 sm:py-3 bg-primary text-primary-foreground rounded-lg
+            className="font-pixel px-4 py-2 bg-primary text-primary-foreground rounded-lg
                        hover:scale-105 active:scale-95 transition-transform pixel-border"
-            style={{ fontSize: '11px' }}
+            style={{ fontSize: '10px' }}
           >
             VOLTAR AO CAFÉ
           </button>

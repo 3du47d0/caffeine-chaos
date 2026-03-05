@@ -6,36 +6,35 @@ import Lobby from './Lobby';
 import GameOver from './GameOver';
 import RewardScreen from './RewardScreen';
 import TouchControls from './TouchControls';
+import AchievementNotification from './AchievementNotification';
 
 const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
-    runTimer, roomTimes, inputManager,
-    startRun, returnToLobby, buyUpgrade, chooseBuff, upgrades,
+    runTimer, roomTimes, inputManager, isBossRoom,
+    startRun, returnToLobby, buyUpgrade, chooseBuff, toggleMusic,
+    upgrades, unlockedAchievement, clearAchievementNotification, musicMuted,
   } = useGame(canvasRef);
 
   const [canvasScale, setCanvasScale] = useState(1);
   const [showTouch, setShowTouch] = useState(false);
 
-  // Responsive canvas sizing
   const updateCanvasSize = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
-
     const maxW = container.clientWidth;
     const maxH = container.clientHeight;
     const scaleX = maxW / CANVAS_WIDTH;
     const scaleY = maxH / CANVAS_HEIGHT;
-    const scale = Math.min(scaleX, scaleY, 2); // cap at 2x
+    const scale = Math.min(scaleX, scaleY, 3);
     setCanvasScale(scale);
   }, []);
 
   useEffect(() => {
     updateCanvasSize();
     window.addEventListener('resize', updateCanvasSize);
-    // Detect touch
     setShowTouch(inputManager.isTouchDevice);
     const checkTouch = () => setShowTouch(inputManager.isTouchDevice);
     window.addEventListener('touchstart', checkTouch, { once: true });
@@ -44,7 +43,6 @@ const GameCanvas: React.FC = () => {
     };
   }, [updateCanvasSize, inputManager]);
 
-  // Prevent pull-to-refresh and scroll on mobile when playing
   useEffect(() => {
     if (phase !== 'lobby') {
       const prevent = (e: TouchEvent) => e.preventDefault();
@@ -67,12 +65,14 @@ const GameCanvas: React.FC = () => {
           onBuyUpgrade={buyUpgrade}
           hasGamepad={inputManager.hasGamepad()}
           isTouchDevice={showTouch}
+          onToggleMusic={toggleMusic}
+          musicMuted={musicMuted}
         />
       )}
 
       <div
         ref={containerRef}
-        className="flex items-center justify-center w-screen h-screen bg-coffee-espresso select-none overflow-hidden"
+        className="flex items-center justify-center w-screen h-[100dvh] bg-coffee-espresso select-none overflow-hidden"
         style={{ display: phase === 'lobby' ? 'none' : undefined }}
       >
         <div className="relative" style={{ width: CANVAS_WIDTH * canvasScale, height: CANVAS_HEIGHT * canvasScale }}>
@@ -89,9 +89,10 @@ const GameCanvas: React.FC = () => {
           {phase === 'reward' && rewardChoices.length > 0 && (
             <RewardScreen choices={rewardChoices} onChoose={chooseBuff} />
           )}
-          {(phase === 'gameover' || phase === 'victory') && (
+          {(phase === 'gameover' || phase === 'victory' || phase === 'secret_victory') && (
             <GameOver
-              victory={phase === 'victory'}
+              victory={phase === 'victory' || phase === 'secret_victory'}
+              secretVictory={phase === 'secret_victory'}
               goldCollected={runGold}
               runTimer={runTimer}
               roomTimes={roomTimes}
@@ -101,11 +102,26 @@ const GameCanvas: React.FC = () => {
           )}
         </div>
 
-        {/* Touch controls overlay */}
         {showTouch && (phase === 'playing') && (
           <TouchControls inputManager={inputManager} />
         )}
+
+        {/* Music toggle button */}
+        <button
+          onClick={toggleMusic}
+          className="fixed top-2 right-2 z-40 w-8 h-8 rounded-full bg-background/50 backdrop-blur-sm
+                     flex items-center justify-center text-foreground/60 hover:text-foreground
+                     border border-border/30 transition-colors"
+          style={{ fontSize: '14px' }}
+        >
+          {musicMuted ? '🔇' : '🔊'}
+        </button>
       </div>
+
+      <AchievementNotification
+        achievement={unlockedAchievement}
+        onDone={clearAchievementNotification}
+      />
     </>
   );
 };
