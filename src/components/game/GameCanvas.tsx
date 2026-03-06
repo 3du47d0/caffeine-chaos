@@ -24,8 +24,9 @@ const GameCanvas: React.FC = () => {
   const updateCanvasSize = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
-    const maxW = container.clientWidth;
-    const maxH = container.clientHeight;
+    // Use window inner dimensions as fallback when container is hidden or has zero size
+    const maxW = container.clientWidth || window.innerWidth;
+    const maxH = container.clientHeight || window.innerHeight;
     const scaleX = maxW / CANVAS_WIDTH;
     const scaleY = maxH / CANVAS_HEIGHT;
     const scale = Math.min(scaleX, scaleY, 3);
@@ -35,19 +36,36 @@ const GameCanvas: React.FC = () => {
   useEffect(() => {
     updateCanvasSize();
     window.addEventListener('resize', updateCanvasSize);
+    // Also listen for orientation changes on mobile
+    const orientationHandler = () => {
+      // Small delay to let the browser finish rotating
+      setTimeout(updateCanvasSize, 100);
+      setTimeout(updateCanvasSize, 300);
+    };
+    window.addEventListener('orientationchange', orientationHandler);
+    if (screen.orientation) {
+      screen.orientation.addEventListener('change', orientationHandler);
+    }
     setShowTouch(inputManager.isTouchDevice);
     const checkTouch = () => setShowTouch(inputManager.isTouchDevice);
     window.addEventListener('touchstart', checkTouch, { once: true });
     return () => {
       window.removeEventListener('resize', updateCanvasSize);
+      window.removeEventListener('orientationchange', orientationHandler);
+      if (screen.orientation) {
+        screen.orientation.removeEventListener('change', orientationHandler);
+      }
     };
   }, [updateCanvasSize, inputManager]);
 
   useEffect(() => {
     if (phase !== 'lobby') {
-      // Force a layout recalculation after the container becomes visible
+      // Force layout recalculation with multiple frames to handle orientation lag
       requestAnimationFrame(() => {
         updateCanvasSize();
+        requestAnimationFrame(() => {
+          updateCanvasSize();
+        });
       });
 
       const prevent = (e: TouchEvent) => e.preventDefault();
