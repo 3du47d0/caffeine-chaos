@@ -95,7 +95,7 @@ const GameCanvas: React.FC = () => {
 
       <div
         ref={containerRef}
-        className="flex items-center justify-center w-screen h-[100dvh] bg-coffee-espresso select-none overflow-hidden"
+        className="fixed inset-0 flex items-center justify-center bg-coffee-espresso select-none overflow-hidden"
         style={{ display: phase === 'lobby' ? 'none' : undefined }}
       >
         <div className="relative" style={{ width: CANVAS_WIDTH * canvasScale, height: CANVAS_HEIGHT * canvasScale }}>
