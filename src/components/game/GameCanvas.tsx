@@ -45,6 +45,11 @@ const GameCanvas: React.FC = () => {
 
   useEffect(() => {
     if (phase !== 'lobby') {
+      // Force a layout recalculation after the container becomes visible
+      requestAnimationFrame(() => {
+        updateCanvasSize();
+      });
+
       const prevent = (e: TouchEvent) => e.preventDefault();
       document.body.style.overflow = 'hidden';
       document.addEventListener('touchmove', prevent, { passive: false });
@@ -53,7 +58,7 @@ const GameCanvas: React.FC = () => {
         document.removeEventListener('touchmove', prevent);
       };
     }
-  }, [phase]);
+  }, [phase, updateCanvasSize]);
 
   return (
     <>
