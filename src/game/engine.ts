@@ -49,7 +49,7 @@ function defaultRunStats(): RunStats {
   return {
     enemiesKilled: 0, damageTaken: 0, bossesDefeated: 0, roomsCleared: 0,
     goldCollected: 0, dashesUsed: 0, ultimatesUsed: 0, perfectRooms: 0,
-    fastRooms: 0, totalDamageDealt: 0,
+    fastRooms: 0, totalDamageDealt: 0, perfectBoss: false, floorDamageTaken: 0, perfectFloor: false,
   };
 }
 
