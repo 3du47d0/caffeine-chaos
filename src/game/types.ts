@@ -79,6 +79,7 @@ export interface Room {
   walls: Wall[];
   isBossRoom: boolean;
   isSecretBossRoom?: boolean;
+  isShopRoom?: boolean;
 }
 
 export interface Door {
@@ -160,13 +161,16 @@ export interface RunStats {
   goldCollected: number;
   dashesUsed: number;
   ultimatesUsed: number;
-  perfectRooms: number; // rooms cleared without taking damage
-  fastRooms: number; // rooms cleared in < 10 seconds
+  perfectRooms: number;
+  fastRooms: number;
   totalDamageDealt: number;
+  perfectBoss: boolean;
+  floorDamageTaken: number;
+  perfectFloor: boolean;
 }
 
 export interface GameState {
-  phase: 'lobby' | 'playing' | 'reward' | 'gameover' | 'victory' | 'secret_victory';
+  phase: 'lobby' | 'playing' | 'reward' | 'gameover' | 'victory' | 'secret_victory' | 'shop';
   player: Player;
   rooms: Room[];
   currentRoom: number;
@@ -196,10 +200,12 @@ export interface GameState {
   fastBrewTimer: number;
   particleMultiplier: number;
   runStats: RunStats;
-  roomDamageTaken: number; // track damage per room for perfect room
+  roomDamageTaken: number;
   isBossRoom: boolean;
   secretBossDefeated: boolean;
   showSecretPortals: boolean;
+  difficulty: string;
+  characterId: string;
 }
 
 export interface Particle {
