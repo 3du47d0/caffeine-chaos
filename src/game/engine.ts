@@ -125,7 +125,27 @@ export function createInitialState(
   };
 }
 
-export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
+export function buyInRunUpgrade(state: GameState, id: keyof Upgrades, cost: number): boolean {
+  if (state.goldCollected >= cost) {
+    state.goldCollected -= cost;
+    state.upgrades[id]++;
+    if (id === 'maxHpBonus') {
+      state.player.maxHp += 25;
+      state.player.hp = Math.min(state.player.hp + 25, state.player.maxHp);
+    }
+    return true;
+  }
+  return false;
+}
+
+export function leaveShop(state: GameState): void {
+  state.phase = 'playing';
+  // Place exit portal
+  const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
+  const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
+  state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
+}
+
   state.runBuffs[buff.id]++;
 
   switch (buff.id) {
