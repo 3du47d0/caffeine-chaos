@@ -35,14 +35,12 @@ function spawnParticles(state: GameState, pos: Vec2, color: string, count: numbe
   for (let i = 0; i < adjustedCount; i++) {
     const angle = Math.random() * Math.PI * 2;
     const spd = Math.random() * speed;
-    state.particles.push({
-      pos: { x: pos.x, y: pos.y },
-      vel: { x: Math.cos(angle) * spd, y: Math.sin(angle) * spd },
-      lifetime: 20 + Math.random() * 20,
-      maxLifetime: 40,
-      color,
-      size: 2 + Math.random() * 3,
-    });
+    const lt = 20 + Math.random() * 20;
+    state.particles.push(acquireParticle(
+      pos.x, pos.y,
+      Math.cos(angle) * spd, Math.sin(angle) * spd,
+      lt, color, 2 + Math.random() * 3,
+    ));
   }
 }
 
