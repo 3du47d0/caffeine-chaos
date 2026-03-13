@@ -111,6 +111,8 @@ export function createInitialState(upgrades: Upgrades): GameState {
     isBossRoom: false,
     secretBossDefeated: false,
     showSecretPortals: false,
+    difficulty: 'medium',
+    characterId: 'barista',
   };
 }
 
