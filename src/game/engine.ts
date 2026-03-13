@@ -430,7 +430,8 @@ function getShootCooldown(state: GameState): number {
 }
 
 export function update(state: GameState): GameState {
-  if (state.phase !== 'playing') return state;
+  if (state.phase !== 'playing' && state.phase !== 'shop') return state;
+  if (state.phase === 'shop') return state; // Shop is handled by UI
 
   if (state.transitionTimer > 0) {
     state.transitionTimer--;
