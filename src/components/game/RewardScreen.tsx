@@ -1,5 +1,6 @@
 import React from 'react';
 import { RunBuff } from '../../game/types';
+import { RunBuffWithRarity, RARITY_COLORS, RARITY_LABELS } from '../../game/buffs';
 
 interface RewardScreenProps {
   choices: RunBuff[];
@@ -23,44 +24,57 @@ const RewardScreen: React.FC<RewardScreenProps> = ({ choices, onChoose }) => {
 
       {/* Cards */}
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 px-2 sm:px-4 w-full max-w-lg sm:max-w-none items-center sm:items-stretch sm:justify-center">
-        {choices.map((buff, i) => (
-          <button
-            key={buff.id}
-            onClick={() => onChoose(buff)}
-            className="group relative flex flex-row sm:flex-col items-center gap-3 p-3 sm:p-5 rounded-xl pixel-border
-              bg-coffee-dark hover:bg-coffee-medium transition-all duration-200
-              hover:scale-105 active:scale-95 cursor-pointer w-full sm:w-auto"
-            style={{
-              animationDelay: `${i * 100}ms`,
-              minWidth: window.innerWidth >= 640 ? '140px' : undefined,
-            }}
-          >
-            {/* Glow on hover */}
-            <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-              style={{ boxShadow: '0 0 20px 4px rgba(212,160,58,0.4)' }} />
+        {choices.map((buff, i) => {
+          const rarity = (buff as RunBuffWithRarity).rarity || 'common';
+          const rarityColor = RARITY_COLORS[rarity];
+          const rarityLabel = RARITY_LABELS[rarity];
 
-            {/* Icon */}
-            <div className="text-3xl sm:text-5xl drop-shadow-lg relative flex-shrink-0">{buff.icon}</div>
+          return (
+            <button
+              key={`${buff.id}-${i}`}
+              onClick={() => onChoose(buff)}
+              className="group relative flex flex-row sm:flex-col items-center gap-3 p-3 sm:p-5 rounded-xl pixel-border
+                bg-coffee-dark hover:bg-coffee-medium transition-all duration-200
+                hover:scale-105 active:scale-95 cursor-pointer w-full sm:w-auto"
+              style={{
+                animationDelay: `${i * 100}ms`,
+                minWidth: window.innerWidth >= 640 ? '140px' : undefined,
+                borderColor: rarityColor,
+              }}
+            >
+              {/* Rarity glow */}
+              <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                style={{ boxShadow: `0 0 20px 4px ${rarityColor}44` }} />
 
-            {/* Text */}
-            <div className="flex-1 sm:text-center">
-              <h3 className="font-pixel text-coffee-gold text-xs sm:text-sm leading-tight">
-                {buff.name}
-              </h3>
-              <p className="font-pixel text-foreground/70 leading-relaxed mt-1" style={{ fontSize: '9px' }}>
-                {buff.description}
-              </p>
-            </div>
+              {/* Rarity badge */}
+              <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded font-pixel"
+                style={{ fontSize: '7px', background: rarityColor, color: '#000' }}>
+                {rarityLabel}
+              </div>
 
-            {/* Select hint */}
-            <div className="px-2 sm:px-3 py-1 rounded pixel-border font-pixel
-              text-foreground/50 group-hover:text-coffee-gold group-hover:border-coffee-gold
-              transition-colors duration-150 border border-foreground/20 flex-shrink-0"
-              style={{ fontSize: '8px' }}>
-              ESCOLHER
-            </div>
-          </button>
-        ))}
+              {/* Icon */}
+              <div className="text-3xl sm:text-5xl drop-shadow-lg relative flex-shrink-0">{buff.icon}</div>
+
+              {/* Text */}
+              <div className="flex-1 sm:text-center">
+                <h3 className="font-pixel text-xs sm:text-sm leading-tight" style={{ color: rarityColor }}>
+                  {buff.name}
+                </h3>
+                <p className="font-pixel text-foreground/70 leading-relaxed mt-1" style={{ fontSize: '9px' }}>
+                  {buff.description}
+                </p>
+              </div>
+
+              {/* Select hint */}
+              <div className="px-2 sm:px-3 py-1 rounded pixel-border font-pixel
+                text-foreground/50 group-hover:text-coffee-gold group-hover:border-coffee-gold
+                transition-colors duration-150 border border-foreground/20 flex-shrink-0"
+                style={{ fontSize: '8px' }}>
+                ESCOLHER
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       <p className="mt-4 sm:mt-8 font-pixel text-foreground/30 animate-pulse" style={{ fontSize: '9px' }}>
