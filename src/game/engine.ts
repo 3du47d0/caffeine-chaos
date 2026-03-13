@@ -6,10 +6,15 @@ import {
   PLAYER_SHOOT_COOLDOWN, PLAYER_DASH_COOLDOWN, PLAYER_DASH_DURATION,
   PLAYER_DASH_SPEED, PLAYER_ULTIMATE_COOLDOWN, PLAYER_INVINCIBLE_AFTER_HIT,
   BEAN_SPEED, BEAN_DAMAGE, BEAN_SIZE, ENEMY_CONFIGS, ROOMS_PER_FLOOR, TOTAL_FLOORS,
+  IN_RUN_SHOP_ITEMS,
 } from './constants';
 import { generateFloor } from './rooms';
 import { defaultRunBuffs, drawRewards } from './buffs';
 import { getAchievementBonuses, loadAchievementProgress, allAchievementsUnlocked } from './achievements';
+import { acquireProjectile, acquireParticle, projectilePool, particlePool } from './pool';
+import { getCharacter, CharacterId } from './characters';
+import { getDifficulty, DifficultyId, unlockImpossible } from './difficulty';
+import { unlockSupremo } from './characters';
 
 function dist(a: Vec2, b: Vec2): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
