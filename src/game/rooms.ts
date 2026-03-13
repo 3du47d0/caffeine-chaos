@@ -1,5 +1,6 @@
 import { Room, Enemy, Pickup, Vec2, EnemyType, Wall, Boss, BossType } from './types';
 import { ROOM_WIDTH, ROOM_HEIGHT, ENEMY_CONFIGS } from './constants';
+import { DifficultyConfig } from './difficulty';
 
 function rand(min: number, max: number): number {
   return Math.random() * (max - min) + min;
@@ -9,27 +10,29 @@ function randInt(min: number, max: number): number {
   return Math.floor(rand(min, max + 1));
 }
 
-function createEnemy(x: number, y: number, type: EnemyType): Enemy {
+function createEnemy(x: number, y: number, type: EnemyType, diff?: DifficultyConfig): Enemy {
   const config = ENEMY_CONFIGS[type];
+  const hpMult = diff?.enemyHpMult ?? 1;
+  const hp = Math.floor(config.hp * hpMult);
   return {
     pos: { x, y },
     vel: { x: 0, y: 0 },
     size: config.size,
-    hp: config.hp,
-    maxHp: config.hp,
+    hp,
+    maxHp: hp,
     type,
     shootTimer: randInt(30, 90),
     moveTimer: randInt(20, 60),
     targetPos: { x, y },
-    dropGold: config.gold,
+    dropGold: Math.ceil(config.gold * (diff?.goldMult ?? 1)),
   };
 }
 
 const BOSS_TYPES: BossType[] = ['grinder', 'steam_king', 'overflowing_pot'];
 
-function createBoss(floor: number): Boss {
+function createBoss(floor: number, diff?: DifficultyConfig): Boss {
   const type = BOSS_TYPES[floor % BOSS_TYPES.length];
-  const hpMult = 1 + floor * 0.4;
+  const hpMult = (1 + floor * 0.4) * (diff?.bossHpMult ?? 1);
   const baseHp = 300;
   const hp = Math.floor(baseHp * hpMult);
   return {
@@ -45,7 +48,7 @@ function createBoss(floor: number): Boss {
     angle: 0,
     invisibleTimer: 0,
     summonTimer: 180,
-    dropGold: 30 + floor * 10,
+    dropGold: Math.ceil((30 + floor * 10) * (diff?.goldMult ?? 1)),
   };
 }
 
@@ -76,15 +79,21 @@ function generateWalls(roomIndex: number): Wall[] {
   return walls;
 }
 
-export function generateFloor(floor: number, numRooms: number): Room[] {
+export function generateFloor(floor: number, numRooms: number, diff?: DifficultyConfig): Room[] {
   const rooms: Room[] = [];
   const enemyTypes: EnemyType[] = ['croissant', 'milk_blob', 'angry_cup', 'drone'];
   const margin = 70;
+  const countMult = diff?.enemyCountMult ?? 1;
+
+  // Insert a shop room at room index 2 (3rd room) if there are enough rooms
+  const shopRoomIndex = numRooms > 3 ? 2 : -1;
 
   for (let i = 0; i < numRooms; i++) {
     const isBoss = i === numRooms - 1;
-    const enemyCount = isBoss ? 0 : Math.min(3 + floor + Math.floor(i / 2), 8);
-    const hpMult = 1 + floor * 0.3;
+    const isShop = i === shopRoomIndex;
+
+    const enemyCount = isBoss || isShop ? 0 : Math.min(Math.round((3 + floor + Math.floor(i / 2)) * countMult), 10);
+    const hpMult = (1 + floor * 0.3) * (diff?.enemyHpMult ?? 1);
     const enemies: Enemy[] = [];
     const pickups: Pickup[] = [];
 
@@ -93,14 +102,14 @@ export function generateFloor(floor: number, numRooms: number): Room[] {
       const enemy = createEnemy(
         rand(margin + 50, ROOM_WIDTH - margin - 50),
         rand(margin + 50, ROOM_HEIGHT - margin - 50),
-        type
+        type, diff,
       );
-      enemy.hp = Math.floor(enemy.hp * hpMult);
+      enemy.hp = Math.floor(enemy.hp * (1 + floor * 0.3));
       enemy.maxHp = enemy.hp;
       enemies.push(enemy);
     }
 
-    if (Math.random() < 0.4 || isBoss) {
+    if ((Math.random() < 0.4 || isBoss) && !isShop) {
       pickups.push({
         pos: { x: rand(margin, ROOM_WIDTH - margin), y: rand(margin, ROOM_HEIGHT - margin) },
         type: 'health',
@@ -108,13 +117,15 @@ export function generateFloor(floor: number, numRooms: number): Room[] {
       });
     }
 
-    const goldCount = randInt(1, 3);
-    for (let g = 0; g < goldCount; g++) {
-      pickups.push({
-        pos: { x: rand(margin, ROOM_WIDTH - margin), y: rand(margin, ROOM_HEIGHT - margin) },
-        type: 'gold',
-        value: randInt(1, 3),
-      });
+    if (!isShop) {
+      const goldCount = randInt(1, 3);
+      for (let g = 0; g < goldCount; g++) {
+        pickups.push({
+          pos: { x: rand(margin, ROOM_WIDTH - margin), y: rand(margin, ROOM_HEIGHT - margin) },
+          type: 'gold',
+          value: randInt(1, 3),
+        });
+      }
     }
 
     const doors: { pos: Vec2; direction: 'north' | 'south' | 'east' | 'west'; leadsTo: number }[] = [];
@@ -131,12 +142,13 @@ export function generateFloor(floor: number, numRooms: number): Room[] {
       width: ROOM_WIDTH,
       height: ROOM_HEIGHT,
       enemies,
-      boss: isBoss ? createBoss(floor) : null,
+      boss: isBoss ? createBoss(floor, diff) : null,
       pickups,
-      cleared: false,
+      cleared: isShop, // shop rooms are pre-cleared
       doors,
-      walls: i === 0 ? [] : generateWalls(i),
+      walls: (i === 0 || isShop) ? [] : generateWalls(i),
       isBossRoom: isBoss,
+      isShopRoom: isShop,
     });
   }
 
