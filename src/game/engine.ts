@@ -56,12 +56,18 @@ function defaultRunStats(): RunStats {
   };
 }
 
-export function createInitialState(upgrades: Upgrades): GameState {
-  const rooms = generateFloor(0, ROOMS_PER_FLOOR);
+export function createInitialState(
+  upgrades: Upgrades,
+  difficultyId: DifficultyId = 'medium',
+  characterId: CharacterId = 'barista',
+): GameState {
+  const diff = getDifficulty(difficultyId);
+  const char = getCharacter(characterId);
+  const rooms = generateFloor(0, ROOMS_PER_FLOOR, diff);
   const achieveProgress = loadAchievementProgress();
   const bonuses = getAchievementBonuses(achieveProgress);
 
-  const baseHp = PLAYER_HP + upgrades.maxHpBonus * 25 + bonuses.hpBonus;
+  const baseHp = Math.floor((PLAYER_HP + upgrades.maxHpBonus * 25 + bonuses.hpBonus) * char.hpMult);
 
   const player: Player = {
     pos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 },
@@ -114,8 +120,10 @@ export function createInitialState(upgrades: Upgrades): GameState {
     isBossRoom: false,
     secretBossDefeated: false,
     showSecretPortals: false,
-    difficulty: 'medium',
-    characterId: 'barista',
+    difficulty: difficultyId,
+    characterId,
+  };
+}
   };
 }
 
