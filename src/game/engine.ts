@@ -146,6 +146,7 @@ export function leaveShop(state: GameState): void {
   state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
 }
 
+export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
   state.runBuffs[buff.id]++;
 
   switch (buff.id) {
