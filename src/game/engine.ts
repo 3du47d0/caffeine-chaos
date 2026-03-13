@@ -668,6 +668,14 @@ export function update(state: GameState): GameState {
             // Secret boss defeated
             if (room.boss.type === 'secret_boss') {
               state.secretBossDefeated = true;
+              // Unlock Impossible difficulty if on Hard + secret boss
+              if (state.difficulty === 'hard') {
+                unlockImpossible();
+              }
+              // Unlock Supremo character if on Impossible + secret boss
+              if (state.difficulty === 'impossible') {
+                unlockSupremo();
+              }
             }
           }
           if (!proj.isBurnZone) return false;
