@@ -124,8 +124,6 @@ export function createInitialState(
     characterId,
   };
 }
-  };
-}
 
 export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
   state.runBuffs[buff.id]++;
