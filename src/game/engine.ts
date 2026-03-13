@@ -698,15 +698,21 @@ export function update(state: GameState): GameState {
     return true;
   });
 
-  // Update particles
-  state.particles = state.particles.filter(p => {
+  // Update particles with pool recycling
+  const aliveParticles: typeof state.particles = [];
+  for (const p of state.particles) {
     p.pos.x += p.vel.x;
     p.pos.y += p.vel.y;
     p.vel.x *= 0.95;
     p.vel.y *= 0.95;
     p.lifetime--;
-    return p.lifetime > 0;
-  });
+    if (p.lifetime > 0) {
+      aliveParticles.push(p);
+    } else {
+      particlePool.release(p);
+    }
+  }
+  state.particles = aliveParticles;
 
   // Remove dead enemies
   room.enemies = room.enemies.filter(e => e.hp > 0);
