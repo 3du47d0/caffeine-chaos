@@ -47,12 +47,16 @@ export const COLORS = {
   particle: '#E8C170',
 } as const;
 
-export const SHOP_ITEMS: UpgradeShopItem[] = [
-  { id: 'maxHpBonus', name: 'Caneca Grande', description: '+25 HP máximo', cost: 15, maxLevel: 5, icon: '☕' },
-  { id: 'damageBonus', name: 'Grãos Fortes', description: '+10% dano', cost: 20, maxLevel: 5, icon: '💥' },
-  { id: 'speedBonus', name: 'Cafeína Extra', description: '+10% velocidade', cost: 15, maxLevel: 3, icon: '⚡' },
-  { id: 'dashCdrBonus', name: 'Espresso Duplo', description: '-15% cooldown dash', cost: 25, maxLevel: 3, icon: '💨' },
+// In-run shop items (bought during runs with collected gold)
+export const IN_RUN_SHOP_ITEMS: UpgradeShopItem[] = [
+  { id: 'maxHpBonus', name: 'Caneca Grande', description: '+25 HP máximo', cost: 8, maxLevel: 5, icon: '☕' },
+  { id: 'damageBonus', name: 'Grãos Fortes', description: '+10% dano', cost: 12, maxLevel: 5, icon: '💥' },
+  { id: 'speedBonus', name: 'Cafeína Extra', description: '+10% velocidade', cost: 10, maxLevel: 3, icon: '⚡' },
+  { id: 'dashCdrBonus', name: 'Espresso Duplo', description: '-15% cooldown dash', cost: 15, maxLevel: 3, icon: '💨' },
 ];
+
+// Legacy — kept for save compat but no longer shown in lobby
+export const SHOP_ITEMS: UpgradeShopItem[] = IN_RUN_SHOP_ITEMS;
 
 export const ROOMS_PER_FLOOR = 6;
 export const TOTAL_FLOORS = 3;
