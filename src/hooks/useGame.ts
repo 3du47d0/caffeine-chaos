@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { GameState, Upgrades, RunBuff, RoomTime, Achievement } from '../game/types';
-import { createInitialState, update, applyRunBuff } from '../game/engine';
+import { createInitialState, update, applyRunBuff, buyInRunUpgrade, leaveShop } from '../game/engine';
 import { render } from '../game/renderer';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
 import { InputManager, getPerformanceTier, getParticleMultiplier } from '../game/input';
@@ -8,6 +8,8 @@ import { MusicManager } from '../game/music';
 import {
   ACHIEVEMENTS, loadAchievementProgress, saveAchievementProgress, checkAndUnlock,
 } from '../game/achievements';
+import { DifficultyId } from '../game/difficulty';
+import { CharacterId } from '../game/characters';
 
 export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const stateRef = useRef<GameState | null>(null);
@@ -51,16 +53,18 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   }, [musicManager]);
 
   const saveData = useCallback(() => {
-    localStorage.setItem('cafe_chaos_save', JSON.stringify({
-      gold: savedGoldRef.current,
-      upgrades: upgradesRef.current,
-    }));
+    try {
+      const existing = localStorage.getItem('cafe_chaos_save');
+      const parsed = existing ? JSON.parse(existing) : {};
+      parsed.gold = savedGoldRef.current;
+      parsed.upgrades = upgradesRef.current;
+      localStorage.setItem('cafe_chaos_save', JSON.stringify(parsed));
+    } catch {}
   }, []);
 
   const updateAchievements = useCallback((state: GameState) => {
     const progress = loadAchievementProgress();
 
-    // Update cumulative progress
     progress['first_blood'] = progress['first_blood'] || { current: 0, unlocked: false };
     progress['first_blood'].current = Math.max(progress['first_blood'].current, state.runStats.enemiesKilled);
 
@@ -79,6 +83,24 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     progress['massacre'] = progress['massacre'] || { current: 0, unlocked: false };
     progress['massacre'].current += state.runStats.enemiesKilled;
 
+    // Speedrunner: complete game in < 5 minutes (18000 frames at 60fps)
+    if ((state.phase === 'victory' || state.phase === 'secret_victory') && state.runTimer < 18000) {
+      progress['speedrunner'] = progress['speedrunner'] || { current: 0, unlocked: false };
+      progress['speedrunner'].current = 1;
+    }
+
+    // Perfect boss: defeated a boss with 0 room damage taken
+    if (state.runStats.perfectBoss) {
+      progress['perfect_boss'] = progress['perfect_boss'] || { current: 0, unlocked: false };
+      progress['perfect_boss'].current = 1;
+    }
+
+    // No-hit floor
+    if (state.runStats.perfectFloor) {
+      progress['no_hit_floor'] = progress['no_hit_floor'] || { current: 0, unlocked: false };
+      progress['no_hit_floor'].current = 1;
+    }
+
     if (state.phase === 'victory' || state.phase === 'secret_victory') {
       progress['victory_lap'] = progress['victory_lap'] || { current: 0, unlocked: false };
       progress['victory_lap'].current = 1;
@@ -93,8 +115,8 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
   }, []);
 
-  const startRun = useCallback(() => {
-    const state = createInitialState(upgradesRef.current);
+  const startRun = useCallback((difficulty: DifficultyId = 'medium', character: CharacterId = 'barista') => {
+    const state = createInitialState(upgradesRef.current, difficulty, character);
     state.particleMultiplier = particleMult;
     stateRef.current = state;
     setPhase('playing');
@@ -121,17 +143,6 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     musicManager.stop();
   }, [saveData, updateAchievements, musicManager]);
 
-  const buyUpgrade = useCallback((id: keyof Upgrades, cost: number) => {
-    if (savedGoldRef.current >= cost) {
-      savedGoldRef.current -= cost;
-      upgradesRef.current[id]++;
-      setGold(savedGoldRef.current);
-      saveData();
-      return true;
-    }
-    return false;
-  }, [saveData]);
-
   const chooseBuff = useCallback((buff: RunBuff) => {
     const state = stateRef.current;
     if (!state) return;
@@ -151,6 +162,25 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.4);
     } catch {}
+  }, []);
+
+  const shopBuy = useCallback((id: keyof Upgrades, cost: number): boolean => {
+    const state = stateRef.current;
+    if (!state) return false;
+    const result = buyInRunUpgrade(state, id, cost);
+    if (result) {
+      setRunGold(state.goldCollected);
+      setHp(state.player.hp);
+      setMaxHp(state.player.maxHp);
+    }
+    return result;
+  }, []);
+
+  const shopLeave = useCallback(() => {
+    const state = stateRef.current;
+    if (!state) return;
+    leaveShop(state);
+    setPhase('playing');
   }, []);
 
   const toggleMusic = useCallback(() => {
@@ -211,7 +241,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         wasBossRoom = !!isNowBoss;
       }
 
-      if (state && state.phase === 'reward') {
+      if (state && (state.phase === 'reward' || state.phase === 'shop')) {
         render(ctx, state);
       }
 
@@ -237,7 +267,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         if (state.phase === 'gameover' || state.phase === 'victory' || state.phase === 'secret_victory') {
           savedGoldRef.current += state.goldCollected;
           if (state.phase === 'secret_victory') {
-            savedGoldRef.current += 50; // bonus gold for secret boss
+            savedGoldRef.current += 50;
           }
           setGold(savedGoldRef.current);
           updateAchievements(state);
@@ -260,7 +290,8 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   return {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
     runTimer, roomTimes, inputManager, isBossRoom,
-    startRun, returnToLobby, buyUpgrade, chooseBuff, toggleMusic,
+    startRun, returnToLobby, chooseBuff, toggleMusic,
+    shopBuy, shopLeave,
     upgrades: upgradesRef.current,
     unlockedAchievement, clearAchievementNotification: () => setUnlockedAchievement(null),
     musicMuted: musicManager.isMuted(),

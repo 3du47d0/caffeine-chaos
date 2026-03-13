@@ -6,10 +6,15 @@ import {
   PLAYER_SHOOT_COOLDOWN, PLAYER_DASH_COOLDOWN, PLAYER_DASH_DURATION,
   PLAYER_DASH_SPEED, PLAYER_ULTIMATE_COOLDOWN, PLAYER_INVINCIBLE_AFTER_HIT,
   BEAN_SPEED, BEAN_DAMAGE, BEAN_SIZE, ENEMY_CONFIGS, ROOMS_PER_FLOOR, TOTAL_FLOORS,
+  IN_RUN_SHOP_ITEMS,
 } from './constants';
 import { generateFloor } from './rooms';
 import { defaultRunBuffs, drawRewards } from './buffs';
 import { getAchievementBonuses, loadAchievementProgress, allAchievementsUnlocked } from './achievements';
+import { acquireProjectile, acquireParticle, projectilePool, particlePool } from './pool';
+import { getCharacter, CharacterId } from './characters';
+import { getDifficulty, DifficultyId, unlockImpossible } from './difficulty';
+import { unlockSupremo } from './characters';
 
 function dist(a: Vec2, b: Vec2): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
@@ -30,14 +35,12 @@ function spawnParticles(state: GameState, pos: Vec2, color: string, count: numbe
   for (let i = 0; i < adjustedCount; i++) {
     const angle = Math.random() * Math.PI * 2;
     const spd = Math.random() * speed;
-    state.particles.push({
-      pos: { x: pos.x, y: pos.y },
-      vel: { x: Math.cos(angle) * spd, y: Math.sin(angle) * spd },
-      lifetime: 20 + Math.random() * 20,
-      maxLifetime: 40,
-      color,
-      size: 2 + Math.random() * 3,
-    });
+    const lt = 20 + Math.random() * 20;
+    state.particles.push(acquireParticle(
+      pos.x, pos.y,
+      Math.cos(angle) * spd, Math.sin(angle) * spd,
+      lt, color, 2 + Math.random() * 3,
+    ));
   }
 }
 
@@ -49,16 +52,22 @@ function defaultRunStats(): RunStats {
   return {
     enemiesKilled: 0, damageTaken: 0, bossesDefeated: 0, roomsCleared: 0,
     goldCollected: 0, dashesUsed: 0, ultimatesUsed: 0, perfectRooms: 0,
-    fastRooms: 0, totalDamageDealt: 0,
+    fastRooms: 0, totalDamageDealt: 0, perfectBoss: false, floorDamageTaken: 0, perfectFloor: false,
   };
 }
 
-export function createInitialState(upgrades: Upgrades): GameState {
-  const rooms = generateFloor(0, ROOMS_PER_FLOOR);
+export function createInitialState(
+  upgrades: Upgrades,
+  difficultyId: DifficultyId = 'medium',
+  characterId: CharacterId = 'barista',
+): GameState {
+  const diff = getDifficulty(difficultyId);
+  const char = getCharacter(characterId);
+  const rooms = generateFloor(0, ROOMS_PER_FLOOR, diff);
   const achieveProgress = loadAchievementProgress();
   const bonuses = getAchievementBonuses(achieveProgress);
 
-  const baseHp = PLAYER_HP + upgrades.maxHpBonus * 25 + bonuses.hpBonus;
+  const baseHp = Math.floor((PLAYER_HP + upgrades.maxHpBonus * 25 + bonuses.hpBonus) * char.hpMult);
 
   const player: Player = {
     pos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 },
@@ -111,7 +120,30 @@ export function createInitialState(upgrades: Upgrades): GameState {
     isBossRoom: false,
     secretBossDefeated: false,
     showSecretPortals: false,
+    difficulty: difficultyId,
+    characterId,
   };
+}
+
+export function buyInRunUpgrade(state: GameState, id: keyof Upgrades, cost: number): boolean {
+  if (state.goldCollected >= cost) {
+    state.goldCollected -= cost;
+    state.upgrades[id]++;
+    if (id === 'maxHpBonus') {
+      state.player.maxHp += 25;
+      state.player.hp = Math.min(state.player.hp + 25, state.player.maxHp);
+    }
+    return true;
+  }
+  return false;
+}
+
+export function leaveShop(state: GameState): void {
+  state.phase = 'playing';
+  // Place exit portal
+  const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
+  const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
+  state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
 }
 
 export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
@@ -381,21 +413,25 @@ function takeDamage(state: GameState, amount: number) {
 
 function getDamageMult(state: GameState): number {
   const achieveBonuses = getAchievementBonuses(loadAchievementProgress());
-  return (1 + state.upgrades.damageBonus * 0.1 + achieveBonuses.damageBonus) * (1 + state.runBuffs.torrado * 0.2);
+  const char = getCharacter(state.characterId as CharacterId);
+  return (1 + state.upgrades.damageBonus * 0.1 + achieveBonuses.damageBonus) * (1 + state.runBuffs.torrado * 0.2) * char.damageMult;
 }
 
 function getSpeedMult(state: GameState): number {
   const achieveBonuses = getAchievementBonuses(loadAchievementProgress());
-  return (1 + state.upgrades.speedBonus * 0.1 + achieveBonuses.speedBonus) * (1 + state.runBuffs.descaf * 0.2);
+  const char = getCharacter(state.characterId as CharacterId);
+  return (1 + state.upgrades.speedBonus * 0.1 + achieveBonuses.speedBonus) * (1 + state.runBuffs.descaf * 0.2) * char.speedMult;
 }
 
 function getShootCooldown(state: GameState): number {
-  const chantillyBonus = 1 - state.runBuffs.chantilly * 0.2;
-  return Math.max(4, Math.floor(PLAYER_SHOOT_COOLDOWN * chantillyBonus));
+  const char = getCharacter(state.characterId as CharacterId);
+  const chantillyBonus = 1 - state.runBuffs.chantilly * 0.15;
+  return Math.max(3, Math.floor(PLAYER_SHOOT_COOLDOWN * chantillyBonus * char.shootCdMult));
 }
 
 export function update(state: GameState): GameState {
-  if (state.phase !== 'playing') return state;
+  if (state.phase !== 'playing' && state.phase !== 'shop') return state;
+  if (state.phase === 'shop') return state; // Shop is handled by UI
 
   if (state.transitionTimer > 0) {
     state.transitionTimer--;
@@ -403,7 +439,7 @@ export function update(state: GameState): GameState {
       const target = state.transitionTarget!;
       if (target.floor !== state.floor) {
         state.floor = target.floor;
-        state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR);
+        state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR, getDifficulty(state.difficulty as DifficultyId));
         state.currentRoom = 0;
       } else {
         state.currentRoom = target.room;
@@ -439,6 +475,12 @@ export function update(state: GameState): GameState {
   const dashSpeedMult = 1 + state.runBuffs.descaf * 0.2;
 
   state.isBossRoom = room.isBossRoom;
+
+  // Shop rooms trigger shop phase on enter
+  if (room.isShopRoom && state.phase === 'playing') {
+    state.phase = 'shop';
+    return state;
+  }
 
   let dx = 0, dy = 0;
   if (keys.has('w') || keys.has('arrowup')) dy -= 1;
@@ -654,6 +696,14 @@ export function update(state: GameState): GameState {
             // Secret boss defeated
             if (room.boss.type === 'secret_boss') {
               state.secretBossDefeated = true;
+              // Unlock Impossible difficulty if on Hard + secret boss
+              if (state.difficulty === 'hard') {
+                unlockImpossible();
+              }
+              // Unlock Supremo character if on Impossible + secret boss
+              if (state.difficulty === 'impossible') {
+                unlockSupremo();
+              }
             }
           }
           if (!proj.isBurnZone) return false;
@@ -676,15 +726,21 @@ export function update(state: GameState): GameState {
     return true;
   });
 
-  // Update particles
-  state.particles = state.particles.filter(p => {
+  // Update particles with pool recycling
+  const aliveParticles: typeof state.particles = [];
+  for (const p of state.particles) {
     p.pos.x += p.vel.x;
     p.pos.y += p.vel.y;
     p.vel.x *= 0.95;
     p.vel.y *= 0.95;
     p.lifetime--;
-    return p.lifetime > 0;
-  });
+    if (p.lifetime > 0) {
+      aliveParticles.push(p);
+    } else {
+      particlePool.release(p);
+    }
+  }
+  state.particles = aliveParticles;
 
   // Remove dead enemies
   room.enemies = room.enemies.filter(e => e.hp > 0);
