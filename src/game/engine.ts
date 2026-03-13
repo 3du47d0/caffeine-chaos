@@ -454,6 +454,12 @@ export function update(state: GameState): GameState {
 
   state.isBossRoom = room.isBossRoom;
 
+  // Shop rooms trigger shop phase on enter
+  if (room.isShopRoom && state.phase === 'playing') {
+    state.phase = 'shop';
+    return state;
+  }
+
   let dx = 0, dy = 0;
   if (keys.has('w') || keys.has('arrowup')) dy -= 1;
   if (keys.has('s') || keys.has('arrowdown')) dy += 1;
