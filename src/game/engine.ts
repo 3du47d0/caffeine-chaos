@@ -417,7 +417,7 @@ export function update(state: GameState): GameState {
       const target = state.transitionTarget!;
       if (target.floor !== state.floor) {
         state.floor = target.floor;
-        state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR);
+        state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR, getDifficulty(state.difficulty as DifficultyId));
         state.currentRoom = 0;
       } else {
         state.currentRoom = target.room;
