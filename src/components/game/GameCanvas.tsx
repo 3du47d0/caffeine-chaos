@@ -5,6 +5,7 @@ import HUD from './HUD';
 import Lobby from './Lobby';
 import GameOver from './GameOver';
 import RewardScreen from './RewardScreen';
+import ShopScreen from './ShopScreen';
 import TouchControls from './TouchControls';
 import AchievementNotification from './AchievementNotification';
 
@@ -14,7 +15,8 @@ const GameCanvas: React.FC = () => {
   const {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
     runTimer, roomTimes, inputManager, isBossRoom,
-    startRun, returnToLobby, buyUpgrade, chooseBuff, toggleMusic,
+    startRun, returnToLobby, chooseBuff, toggleMusic,
+    shopBuy, shopLeave,
     upgrades, unlockedAchievement, clearAchievementNotification, musicMuted,
   } = useGame(canvasRef);
 
@@ -24,7 +26,6 @@ const GameCanvas: React.FC = () => {
   const updateCanvasSize = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
-    // Use window inner dimensions as fallback when container is hidden or has zero size
     const maxW = container.clientWidth || window.innerWidth;
     const maxH = container.clientHeight || window.innerHeight;
     const scaleX = maxW / CANVAS_WIDTH;
@@ -36,9 +37,7 @@ const GameCanvas: React.FC = () => {
   useEffect(() => {
     updateCanvasSize();
     window.addEventListener('resize', updateCanvasSize);
-    // Also listen for orientation changes on mobile
     const orientationHandler = () => {
-      // Small delay to let the browser finish rotating
       setTimeout(updateCanvasSize, 100);
       setTimeout(updateCanvasSize, 300);
     };
@@ -60,7 +59,6 @@ const GameCanvas: React.FC = () => {
 
   useEffect(() => {
     if (phase !== 'lobby') {
-      // Force layout recalculation with multiple frames to handle orientation lag
       requestAnimationFrame(() => {
         updateCanvasSize();
         requestAnimationFrame(() => {
@@ -83,9 +81,7 @@ const GameCanvas: React.FC = () => {
       {phase === 'lobby' && (
         <Lobby
           gold={gold}
-          upgrades={upgrades}
           onStartRun={startRun}
-          onBuyUpgrade={buyUpgrade}
           hasGamepad={inputManager.hasGamepad()}
           isTouchDevice={showTouch}
           onToggleMusic={toggleMusic}
@@ -106,11 +102,19 @@ const GameCanvas: React.FC = () => {
             className="pixel-border rounded-lg cursor-crosshair w-full h-full"
             style={{ imageRendering: 'pixelated' }}
           />
-          {(phase === 'playing' || phase === 'reward') && (
+          {(phase === 'playing' || phase === 'reward' || phase === 'shop') && (
             <HUD hp={hp} maxHp={maxHp} gold={runGold} dashCd={dashCd} ultCd={ultCd} floor={floor} shield={playerShield} />
           )}
           {phase === 'reward' && rewardChoices.length > 0 && (
             <RewardScreen choices={rewardChoices} onChoose={chooseBuff} />
+          )}
+          {phase === 'shop' && (
+            <ShopScreen
+              gold={runGold}
+              upgrades={upgrades}
+              onBuy={shopBuy}
+              onLeave={shopLeave}
+            />
           )}
           {(phase === 'gameover' || phase === 'victory' || phase === 'secret_victory') && (
             <GameOver
@@ -120,7 +124,7 @@ const GameCanvas: React.FC = () => {
               runTimer={runTimer}
               roomTimes={roomTimes}
               onReturnToLobby={returnToLobby}
-              onRestart={startRun}
+              onRestart={() => startRun()}
             />
           )}
         </div>
