@@ -392,17 +392,20 @@ function takeDamage(state: GameState, amount: number) {
 
 function getDamageMult(state: GameState): number {
   const achieveBonuses = getAchievementBonuses(loadAchievementProgress());
-  return (1 + state.upgrades.damageBonus * 0.1 + achieveBonuses.damageBonus) * (1 + state.runBuffs.torrado * 0.2);
+  const char = getCharacter(state.characterId as CharacterId);
+  return (1 + state.upgrades.damageBonus * 0.1 + achieveBonuses.damageBonus) * (1 + state.runBuffs.torrado * 0.2) * char.damageMult;
 }
 
 function getSpeedMult(state: GameState): number {
   const achieveBonuses = getAchievementBonuses(loadAchievementProgress());
-  return (1 + state.upgrades.speedBonus * 0.1 + achieveBonuses.speedBonus) * (1 + state.runBuffs.descaf * 0.2);
+  const char = getCharacter(state.characterId as CharacterId);
+  return (1 + state.upgrades.speedBonus * 0.1 + achieveBonuses.speedBonus) * (1 + state.runBuffs.descaf * 0.2) * char.speedMult;
 }
 
 function getShootCooldown(state: GameState): number {
-  const chantillyBonus = 1 - state.runBuffs.chantilly * 0.2;
-  return Math.max(4, Math.floor(PLAYER_SHOOT_COOLDOWN * chantillyBonus));
+  const char = getCharacter(state.characterId as CharacterId);
+  const chantillyBonus = 1 - state.runBuffs.chantilly * 0.15;
+  return Math.max(3, Math.floor(PLAYER_SHOOT_COOLDOWN * chantillyBonus * char.shootCdMult));
 }
 
 export function update(state: GameState): GameState {
