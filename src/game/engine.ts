@@ -509,13 +509,27 @@ export function update(state: GameState): GameState {
   const moveDir = normalize({ x: dx, y: dy });
   const speed = player.dashTimer > 0 ? PLAYER_DASH_SPEED * dashSpeedMult : PLAYER_SPEED * speedMult;
 
+  // Icy floor: add momentum/sliding
+  const theme = getFloorTheme(state.floor);
+  const isIcy = theme.icyFloor && player.dashTimer <= 0;
+
   if (player.dashTimer > 0) {
     player.pos.x += player.facing.x * speed;
     player.pos.y += player.facing.y * speed;
     player.dashTimer--;
+  } else if (isIcy) {
+    // Slippery: blend velocity toward desired direction
+    const friction = 0.88;
+    const accel = 0.35;
+    player.vel.x = player.vel.x * friction + moveDir.x * speed * accel;
+    player.vel.y = player.vel.y * friction + moveDir.y * speed * accel;
+    player.pos.x += player.vel.x;
+    player.pos.y += player.vel.y;
   } else {
-    player.pos.x += moveDir.x * speed;
-    player.pos.y += moveDir.y * speed;
+    player.vel.x = moveDir.x * speed;
+    player.vel.y = moveDir.y * speed;
+    player.pos.x += player.vel.x;
+    player.pos.y += player.vel.y;
   }
 
   const toMouse = normalize({
