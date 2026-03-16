@@ -1,6 +1,7 @@
 import { Room, Enemy, Pickup, Vec2, EnemyType, Wall, Boss, BossType } from './types';
 import { ROOM_WIDTH, ROOM_HEIGHT, ENEMY_CONFIGS } from './constants';
 import { DifficultyConfig } from './difficulty';
+import { getFloorTheme } from './floors';
 
 function rand(min: number, max: number): number {
   return Math.random() * (max - min) + min;
@@ -52,7 +53,7 @@ function createBoss(floor: number, diff?: DifficultyConfig): Boss {
   };
 }
 
-function generateWalls(roomIndex: number): Wall[] {
+function generateWalls(roomIndex: number, floor: number): Wall[] {
   const walls: Wall[] = [];
   const margin = 60;
   const wallThickness = 20;
@@ -76,12 +77,33 @@ function generateWalls(roomIndex: number): Wall[] {
     }
   }
 
+  // Floor 3 (furnace): add extra obstacles
+  const theme = getFloorTheme(floor);
+  if (theme.id === 'roast_furnace') {
+    walls.push({
+      x: randInt(200, 400),
+      y: randInt(200, 350),
+      w: 30,
+      h: 30,
+    });
+  }
+
   return walls;
+}
+
+// Floor-specific enemy pools
+function getEnemyPool(floor: number): EnemyType[] {
+  switch (floor) {
+    case 0: return ['croissant', 'milk_blob'];
+    case 1: return ['milk_blob', 'angry_cup', 'drone'];
+    case 2: return ['angry_cup', 'drone', 'croissant'];
+    default: return ['croissant', 'milk_blob', 'angry_cup', 'drone'];
+  }
 }
 
 export function generateFloor(floor: number, numRooms: number, diff?: DifficultyConfig): Room[] {
   const rooms: Room[] = [];
-  const enemyTypes: EnemyType[] = ['croissant', 'milk_blob', 'angry_cup', 'drone'];
+  const enemyPool = getEnemyPool(floor);
   const margin = 70;
   const countMult = diff?.enemyCountMult ?? 1;
 
@@ -93,12 +115,11 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
     const isShop = i === shopRoomIndex;
 
     const enemyCount = isBoss || isShop ? 0 : Math.min(Math.round((3 + floor + Math.floor(i / 2)) * countMult), 10);
-    const hpMult = (1 + floor * 0.3) * (diff?.enemyHpMult ?? 1);
     const enemies: Enemy[] = [];
     const pickups: Pickup[] = [];
 
     for (let e = 0; e < enemyCount; e++) {
-      const type = enemyTypes[randInt(0, Math.min(floor + 1, enemyTypes.length - 1))];
+      const type = enemyPool[randInt(0, enemyPool.length - 1)];
       const enemy = createEnemy(
         rand(margin + 50, ROOM_WIDTH - margin - 50),
         rand(margin + 50, ROOM_HEIGHT - margin - 50),
@@ -146,7 +167,7 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
       pickups,
       cleared: isShop, // shop rooms are pre-cleared
       doors,
-      walls: (i === 0 || isShop) ? [] : generateWalls(i),
+      walls: (i === 0 || isShop) ? [] : generateWalls(i, floor),
       isBossRoom: isBoss,
       isShopRoom: isShop,
     });
