@@ -281,6 +281,23 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           }
           setGold(savedGoldRef.current);
           updateAchievements(state);
+
+          // Character unlock checks on victory
+          if (state.phase === 'victory' || state.phase === 'secret_victory') {
+            // French Press: complete floor 3 (index 2) without damage
+            if (state.floor >= 2 && state.runStats.floorDamageTaken === 0) {
+              unlockCharacter('unlock_french_press');
+            }
+            // Grão Torrado: win on Hard in under 5 min (18000 frames)
+            if (state.difficulty === 'hard' && state.runTimer < 18000) {
+              unlockCharacter('unlock_grao_torrado');
+            }
+            // Mocha: defeat 3+ bosses without using dash
+            if (state.runStats.bossesDefeated >= 3 && state.runStats.dashesUsed === 0) {
+              unlockCharacter('unlock_mocha');
+            }
+          }
+
           saveData();
           musicManager.stop();
         }
