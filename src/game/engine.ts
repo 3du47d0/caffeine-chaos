@@ -431,9 +431,24 @@ function getShootCooldown(state: GameState): number {
   return Math.max(3, Math.floor(PLAYER_SHOOT_COOLDOWN * chantillyBonus * char.shootCdMult));
 }
 
+export const RESTART_HOLD_FRAMES = 90; // 1.5s at 60fps
+
 export function update(state: GameState): GameState {
   if (state.phase !== 'playing' && state.phase !== 'shop') return state;
   if (state.phase === 'shop') return state; // Shop is handled by UI
+
+  // Quick restart: hold R
+  if (state.keys.has('r')) {
+    state.restartHoldTimer++;
+    if (state.restartHoldTimer >= RESTART_HOLD_FRAMES) {
+      state.phase = 'gameover'; // Signal restart needed
+      state.restartHoldTimer = 0;
+      (state as any)._quickRestart = true;
+      return state;
+    }
+  } else {
+    state.restartHoldTimer = 0;
+  }
 
   if (state.transitionTimer > 0) {
     state.transitionTimer--;
