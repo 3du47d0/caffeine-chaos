@@ -122,6 +122,7 @@ export function createInitialState(
     showSecretPortals: false,
     difficulty: difficultyId,
     characterId,
+    restartHoldTimer: 0,
   };
 }
 
