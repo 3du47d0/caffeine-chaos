@@ -482,6 +482,16 @@ export function update(state: GameState): GameState {
   state.roomTimer++;
   if (state.fastBrewTimer > 0) state.fastBrewTimer--;
 
+  // Fire hazards on furnace floor
+  const floorTheme = getFloorTheme(state.floor);
+  if (floorTheme.fireHazards && state.runTimer % 180 === 0) {
+    // Spawn a random fire zone
+    state.projectiles.push({
+      pos: { x: 80 + Math.random() * (CANVAS_WIDTH - 160), y: 80 + Math.random() * (CANVAS_HEIGHT - 160) },
+      vel: { x: 0, y: 0 }, size: 24, damage: 6, friendly: false, lifetime: 150, isBurnZone: true,
+    });
+  }
+
   const { player, keys } = state;
   const room = state.rooms[state.currentRoom];
   const margin = 50;
