@@ -12,9 +12,10 @@ import { generateFloor } from './rooms';
 import { defaultRunBuffs, drawRewards } from './buffs';
 import { getAchievementBonuses, loadAchievementProgress, allAchievementsUnlocked } from './achievements';
 import { acquireProjectile, acquireParticle, projectilePool, particlePool } from './pool';
-import { getCharacter, CharacterId } from './characters';
+import { getCharacter, CharacterId, unlockCharacter } from './characters';
 import { getDifficulty, DifficultyId, unlockImpossible } from './difficulty';
 import { unlockSupremo } from './characters';
+import { getFloorTheme } from './floors';
 
 function dist(a: Vec2, b: Vec2): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
