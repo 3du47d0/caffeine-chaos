@@ -80,6 +80,7 @@ export interface Room {
   isBossRoom: boolean;
   isSecretBossRoom?: boolean;
   isShopRoom?: boolean;
+  shopVisited?: boolean;
 }
 
 export interface Door {

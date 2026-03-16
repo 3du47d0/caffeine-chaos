@@ -476,8 +476,9 @@ export function update(state: GameState): GameState {
 
   state.isBossRoom = room.isBossRoom;
 
-  // Shop rooms trigger shop phase on enter
-  if (room.isShopRoom && state.phase === 'playing') {
+  // Shop rooms trigger shop phase on enter (only once)
+  if (room.isShopRoom && state.phase === 'playing' && !room.shopVisited) {
+    room.shopVisited = true;
     state.phase = 'shop';
     return state;
   }
