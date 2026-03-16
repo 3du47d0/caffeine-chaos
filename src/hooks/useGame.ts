@@ -4,6 +4,7 @@ import { createInitialState, update, applyRunBuff, buyInRunUpgrade, leaveShop } 
 import { render } from '../game/renderer';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
 import { InputManager, getPerformanceTier, getParticleMultiplier } from '../game/input';
+import { unlockCharacter } from '../game/characters';
 import { MusicManager } from '../game/music';
 import {
   ACHIEVEMENTS, loadAchievementProgress, saveAchievementProgress, checkAndUnlock,
