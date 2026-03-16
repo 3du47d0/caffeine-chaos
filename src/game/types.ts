@@ -207,6 +207,8 @@ export interface GameState {
   showSecretPortals: boolean;
   difficulty: string;
   characterId: string;
+  // Quick restart
+  restartHoldTimer: number;
 }
 
 export interface Particle {
