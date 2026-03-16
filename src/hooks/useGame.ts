@@ -4,6 +4,7 @@ import { createInitialState, update, applyRunBuff, buyInRunUpgrade, leaveShop } 
 import { render } from '../game/renderer';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
 import { InputManager, getPerformanceTier, getParticleMultiplier } from '../game/input';
+import { unlockCharacter } from '../game/characters';
 import { MusicManager } from '../game/music';
 import {
   ACHIEVEMENTS, loadAchievementProgress, saveAchievementProgress, checkAndUnlock,
@@ -201,7 +202,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
     const loop = () => {
       const state = stateRef.current;
-      if (state && state.phase === 'playing') {
+      if (state && (state.phase === 'playing' || ((state as any)._quickRestart))) {
         const input = inputManager.getInput(state.player.pos);
         state.keys.clear();
         if (input.moveX < -0.3) state.keys.add('a');
@@ -210,8 +211,18 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         if (input.moveY > 0.3) state.keys.add('s');
         if (input.dash) state.keys.add(' ');
         if (input.ultimate) state.keys.add('q');
+        // Forward R key for quick restart
+        if (inputManager.keys.has('r')) state.keys.add('r');
         state.mousePos = { x: input.aimX, y: input.aimY };
         state.mouseDown = input.shoot;
+
+        // Handle quick restart trigger
+        if ((state as any)._quickRestart) {
+          (state as any)._quickRestart = false;
+          startRun(state.difficulty as any, state.characterId as any);
+          animFrameRef.current = requestAnimationFrame(loop);
+          return;
+        }
 
         update(state);
         render(ctx, state);
@@ -271,6 +282,23 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           }
           setGold(savedGoldRef.current);
           updateAchievements(state);
+
+          // Character unlock checks on victory
+          if (state.phase === 'victory' || state.phase === 'secret_victory') {
+            // French Press: complete floor 3 (index 2) without damage
+            if (state.floor >= 2 && state.runStats.floorDamageTaken === 0) {
+              unlockCharacter('unlock_french_press');
+            }
+            // Grão Torrado: win on Hard in under 5 min (18000 frames)
+            if (state.difficulty === 'hard' && state.runTimer < 18000) {
+              unlockCharacter('unlock_grao_torrado');
+            }
+            // Mocha: defeat 3+ bosses without using dash
+            if (state.runStats.bossesDefeated >= 3 && state.runStats.dashesUsed === 0) {
+              unlockCharacter('unlock_mocha');
+            }
+          }
+
           saveData();
           musicManager.stop();
         }

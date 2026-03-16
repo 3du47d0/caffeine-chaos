@@ -12,9 +12,10 @@ import { generateFloor } from './rooms';
 import { defaultRunBuffs, drawRewards } from './buffs';
 import { getAchievementBonuses, loadAchievementProgress, allAchievementsUnlocked } from './achievements';
 import { acquireProjectile, acquireParticle, projectilePool, particlePool } from './pool';
-import { getCharacter, CharacterId } from './characters';
+import { getCharacter, CharacterId, unlockCharacter } from './characters';
 import { getDifficulty, DifficultyId, unlockImpossible } from './difficulty';
 import { unlockSupremo } from './characters';
+import { getFloorTheme } from './floors';
 
 function dist(a: Vec2, b: Vec2): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
@@ -122,6 +123,7 @@ export function createInitialState(
     showSecretPortals: false,
     difficulty: difficultyId,
     characterId,
+    restartHoldTimer: 0,
   };
 }
 
@@ -429,9 +431,24 @@ function getShootCooldown(state: GameState): number {
   return Math.max(3, Math.floor(PLAYER_SHOOT_COOLDOWN * chantillyBonus * char.shootCdMult));
 }
 
+export const RESTART_HOLD_FRAMES = 90; // 1.5s at 60fps
+
 export function update(state: GameState): GameState {
   if (state.phase !== 'playing' && state.phase !== 'shop') return state;
   if (state.phase === 'shop') return state; // Shop is handled by UI
+
+  // Quick restart: hold R
+  if (state.keys.has('r')) {
+    state.restartHoldTimer++;
+    if (state.restartHoldTimer >= RESTART_HOLD_FRAMES) {
+      state.phase = 'gameover'; // Signal restart needed
+      state.restartHoldTimer = 0;
+      (state as any)._quickRestart = true;
+      return state;
+    }
+  } else {
+    state.restartHoldTimer = 0;
+  }
 
   if (state.transitionTimer > 0) {
     state.transitionTimer--;
@@ -465,6 +482,16 @@ export function update(state: GameState): GameState {
   state.roomTimer++;
   if (state.fastBrewTimer > 0) state.fastBrewTimer--;
 
+  // Fire hazards on furnace floor
+  const floorTheme = getFloorTheme(state.floor);
+  if (floorTheme.fireHazards && state.runTimer % 180 === 0) {
+    // Spawn a random fire zone
+    state.projectiles.push({
+      pos: { x: 80 + Math.random() * (CANVAS_WIDTH - 160), y: 80 + Math.random() * (CANVAS_HEIGHT - 160) },
+      vel: { x: 0, y: 0 }, size: 24, damage: 6, friendly: false, lifetime: 150, isBurnZone: true,
+    });
+  }
+
   const { player, keys } = state;
   const room = state.rooms[state.currentRoom];
   const margin = 50;
@@ -492,13 +519,27 @@ export function update(state: GameState): GameState {
   const moveDir = normalize({ x: dx, y: dy });
   const speed = player.dashTimer > 0 ? PLAYER_DASH_SPEED * dashSpeedMult : PLAYER_SPEED * speedMult;
 
+  // Icy floor: add momentum/sliding
+  const theme = getFloorTheme(state.floor);
+  const isIcy = theme.icyFloor && player.dashTimer <= 0;
+
   if (player.dashTimer > 0) {
     player.pos.x += player.facing.x * speed;
     player.pos.y += player.facing.y * speed;
     player.dashTimer--;
+  } else if (isIcy) {
+    // Slippery: blend velocity toward desired direction
+    const friction = 0.88;
+    const accel = 0.35;
+    player.vel.x = player.vel.x * friction + moveDir.x * speed * accel;
+    player.vel.y = player.vel.y * friction + moveDir.y * speed * accel;
+    player.pos.x += player.vel.x;
+    player.pos.y += player.vel.y;
   } else {
-    player.pos.x += moveDir.x * speed;
-    player.pos.y += moveDir.y * speed;
+    player.vel.x = moveDir.x * speed;
+    player.vel.y = moveDir.y * speed;
+    player.pos.x += player.vel.x;
+    player.pos.y += player.vel.y;
   }
 
   const toMouse = normalize({

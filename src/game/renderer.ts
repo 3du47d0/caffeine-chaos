@@ -1,5 +1,6 @@
 import { GameState, Enemy, Particle, Pickup, Projectile, Room, Wall, Boss } from './types';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS } from './constants';
+import { getFloorTheme, FloorTheme } from './floors';
 
 function drawPixelRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
   ctx.fillStyle = color;
@@ -13,22 +14,47 @@ function drawPixelCircle(ctx: CanvasRenderingContext2D, x: number, y: number, r:
   ctx.fill();
 }
 
-function drawFloor(ctx: CanvasRenderingContext2D, isSecret?: boolean) {
-  ctx.fillStyle = isSecret ? '#1A0520' : COLORS.floor;
+function drawFloor(ctx: CanvasRenderingContext2D, theme: FloorTheme, isSecret?: boolean) {
+  ctx.fillStyle = isSecret ? '#1A0520' : theme.floorColor;
   ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-  ctx.fillStyle = isSecret ? '#250830' : COLORS.floorTile;
+  ctx.fillStyle = isSecret ? '#250830' : theme.floorTileColor;
   for (let x = 0; x < CANVAS_WIDTH; x += 32) {
     for (let y = 0; y < CANVAS_HEIGHT; y += 32) {
       if ((x / 32 + y / 32) % 2 === 0) ctx.fillRect(x + 1, y + 1, 30, 30);
     }
   }
+
+  // Floor-specific decorations
+  if (theme.id === 'cold_storage') {
+    // Frost sparkles
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = '#87CEEB';
+    const t = Date.now() / 2000;
+    for (let i = 0; i < 8; i++) {
+      const fx = ((i * 137 + t * 50) % CANVAS_WIDTH);
+      const fy = ((i * 211 + t * 30) % CANVAS_HEIGHT);
+      ctx.beginPath();
+      ctx.arc(fx, fy, 3 + Math.sin(t + i) * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  } else if (theme.id === 'roast_furnace') {
+    // Heat shimmer / ember glow at edges
+    ctx.globalAlpha = 0.08;
+    const grad = ctx.createRadialGradient(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 100, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 400);
+    grad.addColorStop(0, 'transparent');
+    grad.addColorStop(1, '#FF4500');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.globalAlpha = 1;
+  }
 }
 
-function drawWalls(ctx: CanvasRenderingContext2D, room: Room) {
+function drawWalls(ctx: CanvasRenderingContext2D, room: Room, theme: FloorTheme) {
   const margin = 40;
   const isSecret = room.isSecretBossRoom;
-  const wallColor = isSecret ? '#3D0050' : COLORS.wall;
-  const highlightColor = isSecret ? '#6B0090' : COLORS.wallHighlight;
+  const wallColor = isSecret ? '#3D0050' : theme.wallColor;
+  const highlightColor = isSecret ? '#6B0090' : theme.wallHighlight;
   
   drawPixelRect(ctx, 0, 0, CANVAS_WIDTH, margin, wallColor);
   drawPixelRect(ctx, 0, CANVAS_HEIGHT - margin, CANVAS_WIDTH, margin, wallColor);
@@ -292,11 +318,9 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
       break;
     }
     case 'secret_boss': {
-      // "O Supremo Expresso" - dark purple/gold aesthetic
       const hpRatio = hp / maxHp;
       const pulse = 1 + Math.sin(t * 2) * 0.05;
       
-      // Aura
       ctx.globalAlpha = 0.3 + Math.sin(t) * 0.1;
       const grad = ctx.createRadialGradient(0, 0, size * 0.5, 0, 0, size * 1.5 * pulse);
       grad.addColorStop(0, hpRatio < 0.4 ? '#FF0040' : '#8B00FF');
@@ -307,19 +331,16 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
       ctx.fill();
       ctx.globalAlpha = 1;
 
-      // Body - dark coffee with purple tint
       ctx.fillStyle = hpRatio < 0.4 ? '#4A0020' : '#2D1B4E';
       ctx.beginPath();
       ctx.arc(0, 0, size * pulse, 0, Math.PI * 2);
       ctx.fill();
 
-      // Inner glow
       ctx.fillStyle = hpRatio < 0.4 ? '#FF0040' : '#6B00B0';
       ctx.beginPath();
       ctx.arc(0, 0, size * 0.6 * pulse, 0, Math.PI * 2);
       ctx.fill();
 
-      // Crown of coffee
       ctx.fillStyle = '#FFD700';
       for (let i = 0; i < 5; i++) {
         const ca = (Math.PI * 2 * i) / 5 + angle;
@@ -332,14 +353,12 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
         ctx.fill();
       }
 
-      // Eyes - glowing
       const eyeColor = hpRatio < 0.4 ? '#FF0000' : '#FFD700';
       drawPixelCircle(ctx, -12, -8, 5, eyeColor);
       drawPixelCircle(ctx, 12, -8, 5, eyeColor);
       drawPixelCircle(ctx, -12, -8, 2, '#FFF');
       drawPixelCircle(ctx, 12, -8, 2, '#FFF');
 
-      // Orbiting particles
       for (let i = 0; i < 4; i++) {
         const oa = t * 2 + (Math.PI * 2 * i) / 4;
         const ox = Math.cos(oa) * (size + 15);
@@ -478,6 +497,7 @@ function drawMinimap(ctx: CanvasRenderingContext2D, state: GameState) {
     const ry = startY;
     const isBossRoom = state.rooms[i].isBossRoom;
     const isSecret = state.rooms[i].isSecretBossRoom;
+    const isShop = state.rooms[i].isShopRoom;
     const color = i === state.currentRoom
       ? COLORS.player
       : state.rooms[i].cleared
@@ -486,6 +506,8 @@ function drawMinimap(ctx: CanvasRenderingContext2D, state: GameState) {
       ? '#8B00FF'
       : isBossRoom
       ? '#C0392B'
+      : isShop
+      ? '#4CAF50'
       : COLORS.doorLocked;
     drawPixelRect(ctx, rx, ry, roomSize, roomSize, color);
     if (isBossRoom) {
@@ -493,17 +515,20 @@ function drawMinimap(ctx: CanvasRenderingContext2D, state: GameState) {
       ctx.font = '8px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(isSecret ? '★' : '!', rx + roomSize / 2, ry + roomSize - 2);
+    } else if (isShop) {
+      ctx.fillStyle = '#FFF';
+      ctx.font = '8px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('$', rx + roomSize / 2, ry + roomSize - 2);
     }
   }
 }
 
 function drawExitPortal(ctx: CanvasRenderingContext2D, state: GameState) {
-  // Draw normal exit portal
   const portal = state.exitPortal;
   if (portal?.active) {
     drawPortal(ctx, portal.pos.x, portal.pos.y, portal.type || 'normal');
   }
-  // Draw secret portal
   const secret = state.secretPortal;
   if (secret?.active) {
     drawPortal(ctx, secret.pos.x, secret.pos.y, 'secret');
@@ -595,8 +620,10 @@ function drawTransitionFade(ctx: CanvasRenderingContext2D, state: GameState) {
     ctx.font = 'bold 20px monospace';
     ctx.textAlign = 'center';
     const target = state.transitionTarget;
-    const floorLabel = target ? `Andar ${target.floor + 1}` : '';
-    ctx.fillText(floorLabel, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    if (target) {
+      const theme = getFloorTheme(target.floor);
+      ctx.fillText(theme.label, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    }
     ctx.globalAlpha = 1;
   }
 }
@@ -636,6 +663,54 @@ function drawFastBrew(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.globalAlpha = 1;
 }
 
+function drawRestartIndicator(ctx: CanvasRenderingContext2D, state: GameState) {
+  if (state.restartHoldTimer <= 0) return;
+  const RESTART_FRAMES = 90; // 1.5 seconds at 60fps
+  const progress = Math.min(1, state.restartHoldTimer / RESTART_FRAMES);
+  
+  // Screen darkening
+  ctx.fillStyle = `rgba(0, 0, 0, ${progress * 0.5})`;
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  // Circular progress indicator
+  const cx = CANVAS_WIDTH / 2;
+  const cy = CANVAS_HEIGHT / 2 - 20;
+  const radius = 28;
+
+  // Background circle
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Progress arc
+  ctx.strokeStyle = progress < 0.8 ? '#FFD700' : '#FF4444';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+  ctx.stroke();
+
+  // Icon
+  ctx.globalAlpha = 0.6 + progress * 0.4;
+  ctx.fillStyle = '#FFF';
+  ctx.font = '20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🔄', cx, cy);
+  ctx.globalAlpha = 1;
+
+  // Text
+  ctx.fillStyle = progress < 0.8 ? '#FFD700' : '#FF4444';
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('REINICIANDO...', cx, cy + radius + 20);
+  ctx.font = '9px monospace';
+  ctx.fillStyle = '#FFF';
+  ctx.fillText('Solte R para cancelar', cx, cy + radius + 34);
+}
+
 export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.save();
 
@@ -652,9 +727,10 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
 
   const room = state.rooms[state.currentRoom];
   const isSecret = room.isSecretBossRoom;
+  const theme = getFloorTheme(state.floor);
 
-  drawFloor(ctx, isSecret);
-  drawWalls(ctx, room);
+  drawFloor(ctx, theme, isSecret);
+  drawWalls(ctx, room, theme);
   drawDoors(ctx, room);
 
   for (const pickup of room.pickups) drawPickup(ctx, pickup);
@@ -673,12 +749,13 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.font = '12px "Press Start 2P", monospace';
   ctx.textAlign = 'left';
   ctx.fillText(`Sala ${state.currentRoom + 1}/${state.rooms.length}`, 50, 25);
-  ctx.fillText(`Andar ${state.floor + 1}`, 50, 42);
+  ctx.fillText(`${theme.label}`, 50, 42);
 
   drawClearMessage(ctx, state);
   drawFastBrew(ctx, state);
   drawRunTimer(ctx, state);
   drawTransitionFade(ctx, state);
+  drawRestartIndicator(ctx, state);
 
   ctx.restore();
 }
