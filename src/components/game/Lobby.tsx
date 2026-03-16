@@ -176,7 +176,7 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
           ) : (
             <>
               <p>WASD - Mover | Mouse - Mirar e Atirar</p>
-              <p>Espaço - Espresso Shot (Dash) | Q - Chuva de Cappuccino</p>
+              <p>Espaço - Dash | Q - Ultimate | Segurar R - Reinício Rápido</p>
             </>
           )}
           {hasGamepad && (
