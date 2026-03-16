@@ -201,7 +201,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
     const loop = () => {
       const state = stateRef.current;
-      if (state && state.phase === 'playing') {
+      if (state && (state.phase === 'playing' || ((state as any)._quickRestart))) {
         const input = inputManager.getInput(state.player.pos);
         state.keys.clear();
         if (input.moveX < -0.3) state.keys.add('a');
@@ -210,8 +210,18 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         if (input.moveY > 0.3) state.keys.add('s');
         if (input.dash) state.keys.add(' ');
         if (input.ultimate) state.keys.add('q');
+        // Forward R key for quick restart
+        if (inputManager.keys.has('r')) state.keys.add('r');
         state.mousePos = { x: input.aimX, y: input.aimY };
         state.mouseDown = input.shoot;
+
+        // Handle quick restart trigger
+        if ((state as any)._quickRestart) {
+          (state as any)._quickRestart = false;
+          startRun(state.difficulty as any, state.characterId as any);
+          animFrameRef.current = requestAnimationFrame(loop);
+          return;
+        }
 
         update(state);
         render(ctx, state);
