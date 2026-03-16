@@ -146,7 +146,8 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
                     <div className="flex-1 min-w-0">
                       <div className="font-pixel text-xs text-foreground">{unlocked ? char.name : '???'}</div>
                       <div className="font-pixel text-foreground/60" style={{ fontSize: '8px' }}>
-                        {unlocked ? char.description : 'Desbloqueie derrotando desafios secretos'}
+                        {unlocked ? char.description : (char.unlockCondition?.description || 'Desbloqueie completando desafios')}
+                      </div>
                       </div>
                       {unlocked && (
                         <div className="flex gap-2 mt-1 font-pixel text-foreground/40" style={{ fontSize: '7px' }}>
