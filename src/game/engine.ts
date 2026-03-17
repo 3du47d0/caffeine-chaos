@@ -9,7 +9,7 @@ import {
   IN_RUN_SHOP_ITEMS,
 } from './constants';
 import { generateFloor } from './rooms';
-import { defaultRunBuffs, drawRewards } from './buffs';
+import { defaultRunBuffs, drawRewards, drawHighRarityRewards } from './buffs';
 import { getAchievementBonuses, loadAchievementProgress, allAchievementsUnlocked } from './achievements';
 import { acquireProjectile, acquireParticle, projectilePool, particlePool } from './pool';
 import { getCharacter, CharacterId, unlockCharacter } from './characters';
@@ -124,6 +124,9 @@ export function createInitialState(
     difficulty: difficultyId,
     characterId,
     restartHoldTimer: 0,
+    rewardPortal: null,
+    rewardReturnRoom: 0,
+    rewardReturnFloor: 0,
   };
 }
 
@@ -142,7 +145,6 @@ export function buyInRunUpgrade(state: GameState, id: keyof Upgrades, cost: numb
 
 export function leaveShop(state: GameState): void {
   state.phase = 'playing';
-  // Place exit portal
   const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
   const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
   state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
@@ -161,13 +163,22 @@ export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
       break;
   }
 
+  // If in reward_room phase, return to normal play after picking
+  if (state.phase === 'reward_room') {
+    state.phase = 'playing';
+    state.rewardChoices = [];
+    // Transition back to the room we came from
+    state.transitionTimer = 60;
+    state.transitionTarget = { floor: state.rewardReturnFloor, room: state.rewardReturnRoom };
+    return state;
+  }
+
   state.phase = 'playing';
   state.rewardChoices = [];
 
   const isLastRoom = state.currentRoom >= state.rooms.length - 1;
   if (isLastRoom) {
     if (state.floor >= TOTAL_FLOORS - 1) {
-      // Check if we should show secret portals
       const progress = loadAchievementProgress();
       if (allAchievementsUnlocked(progress)) {
         state.showSecretPortals = true;
@@ -275,15 +286,9 @@ function updateBoss(state: GameState, boss: Boss) {
       break;
     }
     case 'secret_boss': {
-      // "O Supremo Expresso" - Secret Boss with multiple phases
       const hpRatio = boss.hp / boss.maxHp;
-      
-      // Phase 1: > 70% HP - circular patterns + chase
-      // Phase 2: 40-70% HP - faster + vortex attacks  
-      // Phase 3: < 40% HP - enraged + teleport + shield
 
       if (hpRatio > 0.7) {
-        // Chase and circular shots
         if (boss.moveTimer <= 0) {
           boss.moveTimer = 20;
           const toPlayer = normalize({ x: player.pos.x - boss.pos.x, y: player.pos.y - boss.pos.y });
@@ -302,7 +307,6 @@ function updateBoss(state: GameState, boss: Boss) {
           }
         }
       } else if (hpRatio > 0.4) {
-        // Faster movement + aimed shots + vortex zones
         if (boss.moveTimer <= 0) {
           boss.moveTimer = 15;
           const toPlayer = normalize({ x: player.pos.x - boss.pos.x, y: player.pos.y - boss.pos.y });
@@ -311,7 +315,6 @@ function updateBoss(state: GameState, boss: Boss) {
         }
         if (boss.shootTimer <= 0) {
           boss.shootTimer = 30;
-          // Aimed triple shot
           const dir = normalize({ x: player.pos.x - boss.pos.x, y: player.pos.y - boss.pos.y });
           for (let i = -1; i <= 1; i++) {
             const spread = i * 0.3;
@@ -325,7 +328,6 @@ function updateBoss(state: GameState, boss: Boss) {
             });
           }
         }
-        // Vortex zones
         if (boss.summonTimer <= 0) {
           boss.summonTimer = 120;
           for (let i = 0; i < 4; i++) {
@@ -336,10 +338,9 @@ function updateBoss(state: GameState, boss: Boss) {
           }
         }
       } else {
-        // Enraged phase: teleport + shield + rapid fire
         boss.enrageTimer = (boss.enrageTimer || 0) + 1;
         boss.teleportTimer = (boss.teleportTimer || 0) - 1;
-        
+
         if (boss.teleportTimer! <= 0) {
           boss.teleportTimer = 90;
           boss.pos.x = 100 + Math.random() * (CANVAS_WIDTH - 200);
@@ -347,10 +348,9 @@ function updateBoss(state: GameState, boss: Boss) {
           spawnParticles(state, boss.pos, '#FF00FF', 15, 5);
           state.screenShake = 4;
         }
-        
+
         if (boss.shootTimer <= 0) {
           boss.shootTimer = 20;
-          // Spiral pattern
           for (let i = 0; i < 6; i++) {
             const a = (Math.PI * 2 * i) / 6 + boss.enrageTimer! * 0.1;
             state.projectiles.push({
@@ -359,7 +359,6 @@ function updateBoss(state: GameState, boss: Boss) {
               size: 5, damage: 15, friendly: false, lifetime: 100,
             });
           }
-          // Aimed shot
           const dir = normalize({ x: player.pos.x - boss.pos.x, y: player.pos.y - boss.pos.y });
           state.projectiles.push({
             pos: { x: boss.pos.x, y: boss.pos.y },
@@ -367,7 +366,6 @@ function updateBoss(state: GameState, boss: Boss) {
             size: 8, damage: 25, friendly: false, lifetime: 60,
           });
         }
-        // Summon minions
         if (boss.summonTimer <= 0) {
           boss.summonTimer = 150;
           const room = state.rooms[state.currentRoom];
@@ -431,17 +429,21 @@ function getShootCooldown(state: GameState): number {
   return Math.max(3, Math.floor(PLAYER_SHOOT_COOLDOWN * chantillyBonus * char.shootCdMult));
 }
 
+// Reward portal chance (2-5%)
+const REWARD_PORTAL_CHANCE = 0.04;
+
 export const RESTART_HOLD_FRAMES = 90; // 1.5s at 60fps
 
 export function update(state: GameState): GameState {
-  if (state.phase !== 'playing' && state.phase !== 'shop') return state;
-  if (state.phase === 'shop') return state; // Shop is handled by UI
+  if (state.phase !== 'playing' && state.phase !== 'shop' && state.phase !== 'reward_room') return state;
+  if (state.phase === 'shop') return state;
+  if (state.phase === 'reward_room') return state; // handled by UI
 
   // Quick restart: hold R
   if (state.keys.has('r')) {
     state.restartHoldTimer++;
     if (state.restartHoldTimer >= RESTART_HOLD_FRAMES) {
-      state.phase = 'gameover'; // Signal restart needed
+      state.phase = 'gameover';
       state.restartHoldTimer = 0;
       (state as any)._quickRestart = true;
       return state;
@@ -455,6 +457,8 @@ export function update(state: GameState): GameState {
     if (state.transitionTimer === 30) {
       const target = state.transitionTarget!;
       if (target.floor !== state.floor) {
+        // Unload old floor completely
+        cleanupRoomData(state);
         state.floor = target.floor;
         state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR, getDifficulty(state.difficulty as DifficultyId));
         state.currentRoom = 0;
@@ -463,8 +467,10 @@ export function update(state: GameState): GameState {
       }
       state.player.pos = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 };
       state.projectiles = [];
+      state.particles = [];
       state.exitPortal = null;
       state.secretPortal = null;
+      state.rewardPortal = null;
       state.clearMessageTimer = 0;
       state.roomTimer = 0;
       state.roomDamageTaken = 0;
@@ -485,7 +491,6 @@ export function update(state: GameState): GameState {
   // Fire hazards on furnace floor
   const floorTheme = getFloorTheme(state.floor);
   if (floorTheme.fireHazards && state.runTimer % 180 === 0) {
-    // Spawn a random fire zone
     state.projectiles.push({
       pos: { x: 80 + Math.random() * (CANVAS_WIDTH - 160), y: 80 + Math.random() * (CANVAS_HEIGHT - 160) },
       vel: { x: 0, y: 0 }, size: 24, damage: 6, friendly: false, lifetime: 150, isBurnZone: true,
@@ -500,6 +505,7 @@ export function update(state: GameState): GameState {
   const achieveBonuses = getAchievementBonuses(loadAchievementProgress());
   const dashCdr = (1 - state.upgrades.dashCdrBonus * 0.15) * (1 - achieveBonuses.dashBonus);
   const dashSpeedMult = 1 + state.runBuffs.descaf * 0.2;
+  const diff = getDifficulty(state.difficulty as DifficultyId);
 
   state.isBossRoom = room.isBossRoom;
 
@@ -528,7 +534,6 @@ export function update(state: GameState): GameState {
     player.pos.y += player.facing.y * speed;
     player.dashTimer--;
   } else if (isIcy) {
-    // Slippery: blend velocity toward desired direction
     const friction = 0.88;
     const accel = 0.35;
     player.vel.x = player.vel.x * friction + moveDir.x * speed * accel;
@@ -638,40 +643,72 @@ export function update(state: GameState): GameState {
     });
   }
 
-  // Update enemies
+  // Update enemies with new abilities
   for (const enemy of room.enemies) {
     if (enemy.hp <= 0) continue;
     const config = ENEMY_CONFIGS[enemy.type];
+    const enemySpeedMult = diff.enemySpeedMult;
+    const enemyDmgMult = diff.enemyDamageMult;
+    const abilityChance = diff.enemyAbilityChance;
+    const isMiniBoss = enemy.isMiniBoss;
 
     enemy.moveTimer--;
     if (enemy.moveTimer <= 0) {
       enemy.moveTimer = 40 + Math.random() * 40;
       const toPlayer = normalize({ x: player.pos.x - enemy.pos.x, y: player.pos.y - enemy.pos.y });
-      enemy.targetPos = {
-        x: enemy.pos.x + toPlayer.x * 100 + (Math.random() - 0.5) * 80,
-        y: enemy.pos.y + toPlayer.y * 100 + (Math.random() - 0.5) * 80,
-      };
+
+      // Ability: Dash toward player
+      if (abilityChance > 0 && Math.random() < abilityChance * 0.3) {
+        // Enemy dash: move quickly toward player
+        enemy.pos.x += toPlayer.x * 60;
+        enemy.pos.y += toPlayer.y * 60;
+        spawnParticles(state, enemy.pos, '#FF4444', 4, 2);
+      } else {
+        enemy.targetPos = {
+          x: enemy.pos.x + toPlayer.x * 100 + (Math.random() - 0.5) * 80,
+          y: enemy.pos.y + toPlayer.y * 100 + (Math.random() - 0.5) * 80,
+        };
+      }
     }
 
     const toTarget = normalize({ x: enemy.targetPos.x - enemy.pos.x, y: enemy.targetPos.y - enemy.pos.y });
-    enemy.pos.x += toTarget.x * config.speed;
-    enemy.pos.y += toTarget.y * config.speed;
+    enemy.pos.x += toTarget.x * config.speed * enemySpeedMult;
+    enemy.pos.y += toTarget.y * config.speed * enemySpeedMult;
     enemy.pos.x = clamp(enemy.pos.x, margin + enemy.size, CANVAS_WIDTH - margin - enemy.size);
     enemy.pos.y = clamp(enemy.pos.y, margin + enemy.size, CANVAS_HEIGHT - margin - enemy.size);
 
     enemy.shootTimer--;
-    if (enemy.shootTimer <= 0 && (enemy.type === 'angry_cup' || enemy.type === 'drone')) {
-      enemy.shootTimer = 60 + Math.random() * 60;
+    if (enemy.shootTimer <= 0 && (enemy.type === 'angry_cup' || enemy.type === 'drone' || isMiniBoss)) {
+      enemy.shootTimer = isMiniBoss ? 40 + Math.random() * 30 : 60 + Math.random() * 60;
       const dir = normalize({ x: player.pos.x - enemy.pos.x, y: player.pos.y - enemy.pos.y });
-      state.projectiles.push({
-        pos: { x: enemy.pos.x, y: enemy.pos.y },
-        vel: { x: dir.x * 3, y: dir.y * 3 },
-        size: 4, damage: config.damage, friendly: false, lifetime: 90,
-      });
+      const dmg = Math.floor(config.damage * enemyDmgMult);
+
+      // Ability: Spread shot for mini-bosses or high-ability enemies
+      if (isMiniBoss || (abilityChance > 0 && Math.random() < abilityChance * 0.4)) {
+        // Fire 3 projectiles in a spread
+        for (let s = -1; s <= 1; s++) {
+          const spread = s * 0.25;
+          const cos = Math.cos(spread), sin = Math.sin(spread);
+          const vx = dir.x * cos - dir.y * sin;
+          const vy = dir.x * sin + dir.y * cos;
+          state.projectiles.push({
+            pos: { x: enemy.pos.x, y: enemy.pos.y },
+            vel: { x: vx * 3.5, y: vy * 3.5 },
+            size: 4, damage: dmg, friendly: false, lifetime: 90,
+          });
+        }
+      } else {
+        state.projectiles.push({
+          pos: { x: enemy.pos.x, y: enemy.pos.y },
+          vel: { x: dir.x * 3, y: dir.y * 3 },
+          size: 4, damage: dmg, friendly: false, lifetime: 90,
+        });
+      }
     }
 
+    // All enemy types can melee now (contact damage scales with difficulty)
     if (player.invincibleTimer <= 0 && dist(player.pos, enemy.pos) < player.size + enemy.size) {
-      takeDamage(state, config.damage);
+      takeDamage(state, Math.floor(config.damage * enemyDmgMult));
     }
   }
 
@@ -734,15 +771,12 @@ export function update(state: GameState): GameState {
             state.runStats.bossesDefeated++;
             spawnParticles(state, room.boss.pos, '#FFD700', 25, 6);
             state.screenShake = 10;
-            
-            // Secret boss defeated
+
             if (room.boss.type === 'secret_boss') {
               state.secretBossDefeated = true;
-              // Unlock Impossible difficulty if on Hard + secret boss
               if (state.difficulty === 'hard') {
                 unlockImpossible();
               }
-              // Unlock Supremo character if on Impossible + secret boss
               if (state.difficulty === 'impossible') {
                 unlockSupremo();
               }
@@ -802,7 +836,6 @@ export function update(state: GameState): GameState {
     state.roomTimes.push({ room: state.currentRoom, floor: state.floor, timeFrames: roomTime });
     state.roomTimer = 0;
 
-    // Track perfect rooms (no damage)
     if (state.roomDamageTaken === 0) {
       state.runStats.perfectRooms++;
     }
@@ -821,9 +854,17 @@ export function update(state: GameState): GameState {
         state.phase = 'reward';
       }
     } else {
+      // Spawn exit portal
       const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
       const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
       state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
+
+      // RNG: 2-5% chance of reward portal
+      if (Math.random() < REWARD_PORTAL_CHANCE) {
+        const rpX = 100 + Math.random() * (CANVAS_WIDTH - 200);
+        const rpY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
+        state.rewardPortal = { pos: { x: rpX, y: rpY }, active: true, type: 'reward' };
+      }
     }
   }
 
@@ -846,11 +887,10 @@ export function update(state: GameState): GameState {
   // Exit portal collision
   if (state.exitPortal?.active && dist(player.pos, state.exitPortal.pos) < player.size + 24) {
     state.exitPortal.active = false;
-    
+
     if (state.exitPortal.type === 'finish') {
       state.phase = 'victory';
     } else if (state.exitPortal.type === 'secret') {
-      // Go to secret boss room
       enterSecretBossRoom(state);
     } else {
       const isLastRoom = state.currentRoom >= state.rooms.length - 1;
@@ -878,6 +918,12 @@ export function update(state: GameState): GameState {
     }
   }
 
+  // Reward portal collision
+  if (state.rewardPortal?.active && dist(player.pos, state.rewardPortal.pos) < player.size + 24) {
+    state.rewardPortal.active = false;
+    enterRewardRoom(state);
+  }
+
   // Door collision (backward navigation)
   if (room.cleared) {
     for (const door of room.doors) {
@@ -886,6 +932,7 @@ export function update(state: GameState): GameState {
         state.projectiles = [];
         player.pos = { x: CANVAS_WIDTH / 2, y: 80 };
         state.exitPortal = null;
+        state.rewardPortal = null;
         break;
       }
     }
@@ -900,9 +947,30 @@ export function update(state: GameState): GameState {
   return state;
 }
 
+// Clean up old room data to prevent memory leaks
+function cleanupRoomData(state: GameState) {
+  // Release all particles back to pool
+  for (const p of state.particles) {
+    particlePool.release(p);
+  }
+  state.particles = [];
+  state.projectiles = [];
+  // Clear old rooms array
+  state.rooms = [];
+}
+
+function enterRewardRoom(state: GameState) {
+  // Save return position
+  state.rewardReturnRoom = state.currentRoom;
+  state.rewardReturnFloor = state.floor;
+
+  // Draw high-rarity rewards (epic/legendary only)
+  state.rewardChoices = drawHighRarityRewards(3);
+  state.phase = 'reward_room';
+}
+
 function enterSecretBossRoom(state: GameState) {
-  // Create a special boss room
-  const secretBossHp = Math.floor(800 * 1.7); // 70% more HP than normal
+  const secretBossHp = Math.floor(800 * 1.7);
   const secretRoom = {
     x: 0, y: 0, width: CANVAS_WIDTH, height: CANVAS_HEIGHT,
     enemies: [],
@@ -931,6 +999,7 @@ function enterSecretBossRoom(state: GameState) {
   state.projectiles = [];
   state.exitPortal = null;
   state.secretPortal = null;
+  state.rewardPortal = null;
   state.showSecretPortals = false;
   state.roomDamageTaken = 0;
   state.roomTimer = 0;

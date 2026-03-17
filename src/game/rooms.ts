@@ -29,6 +29,26 @@ function createEnemy(x: number, y: number, type: EnemyType, diff?: DifficultyCon
   };
 }
 
+// Create a mini-boss: an enemy with 3x HP, 1.5x size, and more gold
+function createMiniBoss(x: number, y: number, type: EnemyType, diff?: DifficultyConfig): Enemy {
+  const config = ENEMY_CONFIGS[type];
+  const hpMult = (diff?.enemyHpMult ?? 1) * 3;
+  const hp = Math.floor(config.hp * hpMult);
+  return {
+    pos: { x, y },
+    vel: { x: 0, y: 0 },
+    size: Math.floor(config.size * 1.5),
+    hp,
+    maxHp: hp,
+    type,
+    shootTimer: randInt(20, 50),
+    moveTimer: randInt(15, 40),
+    targetPos: { x, y },
+    dropGold: Math.ceil(config.gold * (diff?.goldMult ?? 1) * 3),
+    isMiniBoss: true,
+  };
+}
+
 const BOSS_TYPES: BossType[] = ['grinder', 'steam_king', 'overflowing_pot'];
 
 function createBoss(floor: number, diff?: DifficultyConfig): Boss {
@@ -53,38 +73,100 @@ function createBoss(floor: number, diff?: DifficultyConfig): Boss {
   };
 }
 
+// ---- Room Layout Templates ----
+type LayoutType = 'square' | 'L_shape' | 'cross' | 'pillars' | 'corridors' | 'arena';
+
+function getLayoutType(roomIndex: number, floor: number): LayoutType {
+  const layouts: LayoutType[] = ['square', 'L_shape', 'cross', 'pillars', 'corridors', 'arena'];
+  // Deterministic-ish but varied
+  const seed = (roomIndex * 7 + floor * 13) % layouts.length;
+  return layouts[seed];
+}
+
 function generateWalls(roomIndex: number, floor: number): Wall[] {
   const walls: Wall[] = [];
-  const margin = 60;
-  const wallThickness = 20;
+  const layout = getLayoutType(roomIndex, floor);
 
-  if (roomIndex % 3 === 0) {
-    walls.push({ x: 300, y: 220, w: 40, h: 40 });
-    walls.push({ x: 460, y: 340, w: 40, h: 40 });
-  } else if (roomIndex % 3 === 1) {
-    walls.push({ x: 250, y: 200, w: wallThickness, h: 120 });
-    walls.push({ x: 250, y: 200, w: 100, h: wallThickness });
-    walls.push({ x: 500, y: 300, w: wallThickness, h: 120 });
-    walls.push({ x: 430, y: 400, w: 90, h: wallThickness });
-  } else {
-    for (let i = 0; i < 3; i++) {
-      walls.push({
-        x: randInt(margin + 80, ROOM_WIDTH - margin - 120),
-        y: randInt(margin + 80, ROOM_HEIGHT - margin - 120),
-        w: randInt(30, 60),
-        h: randInt(30, 60),
-      });
+  switch (layout) {
+    case 'L_shape': {
+      // L-shaped obstacle: top-right block
+      walls.push({ x: 500, y: 60, w: 240, h: 200 });
+      // Fill with smaller decorative walls
+      walls.push({ x: 500, y: 260, w: 30, h: 30 });
+      walls.push({ x: 710, y: 260, w: 30, h: 30 });
+      break;
+    }
+    case 'cross': {
+      // Cross shape in center
+      const cx = ROOM_WIDTH / 2, cy = ROOM_HEIGHT / 2;
+      walls.push({ x: cx - 15, y: cy - 100, w: 30, h: 200 }); // vertical
+      walls.push({ x: cx - 100, y: cy - 15, w: 200, h: 30 }); // horizontal
+      break;
+    }
+    case 'pillars': {
+      // 4 pillars grid
+      const positions = [
+        { x: 200, y: 180 }, { x: 550, y: 180 },
+        { x: 200, y: 380 }, { x: 550, y: 380 },
+      ];
+      for (const p of positions) {
+        walls.push({ x: p.x, y: p.y, w: 40, h: 40 });
+      }
+      break;
+    }
+    case 'corridors': {
+      // Horizontal corridor walls with gaps
+      walls.push({ x: 60, y: 200, w: 280, h: 20 });
+      walls.push({ x: 460, y: 200, w: 280, h: 20 });
+      walls.push({ x: 150, y: 380, w: 280, h: 20 });
+      walls.push({ x: 520, y: 380, w: 220, h: 20 });
+      break;
+    }
+    case 'arena': {
+      // Ring of small obstacles
+      const cx = ROOM_WIDTH / 2, cy = ROOM_HEIGHT / 2;
+      const radius = 140;
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI * 2 * i) / 6;
+        walls.push({
+          x: Math.floor(cx + Math.cos(a) * radius - 15),
+          y: Math.floor(cy + Math.sin(a) * radius - 15),
+          w: 30, h: 30,
+        });
+      }
+      break;
+    }
+    default: {
+      // Classic random walls
+      if (roomIndex % 3 === 0) {
+        walls.push({ x: 300, y: 220, w: 40, h: 40 });
+        walls.push({ x: 460, y: 340, w: 40, h: 40 });
+      } else if (roomIndex % 3 === 1) {
+        walls.push({ x: 250, y: 200, w: 20, h: 120 });
+        walls.push({ x: 250, y: 200, w: 100, h: 20 });
+        walls.push({ x: 500, y: 300, w: 20, h: 120 });
+        walls.push({ x: 430, y: 400, w: 90, h: 20 });
+      } else {
+        for (let i = 0; i < 3; i++) {
+          walls.push({
+            x: randInt(140, ROOM_WIDTH - 200),
+            y: randInt(140, ROOM_HEIGHT - 200),
+            w: randInt(30, 60),
+            h: randInt(30, 60),
+          });
+        }
+      }
+      break;
     }
   }
 
-  // Floor 3 (furnace): add extra obstacles
+  // Floor 3 (furnace): add extra fire obstacles
   const theme = getFloorTheme(floor);
   if (theme.id === 'roast_furnace') {
     walls.push({
       x: randInt(200, 400),
       y: randInt(200, 350),
-      w: 30,
-      h: 30,
+      w: 30, h: 30,
     });
   }
 
@@ -114,7 +196,7 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
     const isBoss = i === numRooms - 1;
     const isShop = i === shopRoomIndex;
 
-    const enemyCount = isBoss || isShop ? 0 : Math.min(Math.round((3 + floor + Math.floor(i / 2)) * countMult), 10);
+    const enemyCount = isBoss || isShop ? 0 : Math.min(Math.round((3 + floor + Math.floor(i / 2)) * countMult), 12);
     const enemies: Enemy[] = [];
     const pickups: Pickup[] = [];
 
@@ -128,6 +210,22 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
       enemy.hp = Math.floor(enemy.hp * (1 + floor * 0.3));
       enemy.maxHp = enemy.hp;
       enemies.push(enemy);
+    }
+
+    // Mini-boss chance for non-boss, non-shop, non-first rooms
+    if (!isBoss && !isShop && i > 0 && diff) {
+      const chance = diff.miniBossChance ?? 0;
+      if (Math.random() < chance) {
+        const type = enemyPool[randInt(0, enemyPool.length - 1)];
+        const mb = createMiniBoss(
+          rand(margin + 80, ROOM_WIDTH - margin - 80),
+          rand(margin + 80, ROOM_HEIGHT - margin - 80),
+          type, diff,
+        );
+        mb.hp = Math.floor(mb.hp * (1 + floor * 0.3));
+        mb.maxHp = mb.hp;
+        enemies.push(mb);
+      }
     }
 
     if ((Math.random() < 0.4 || isBoss) && !isShop) {
