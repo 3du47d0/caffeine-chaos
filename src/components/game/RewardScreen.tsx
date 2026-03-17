@@ -8,7 +8,7 @@ interface RewardScreenProps {
   isSecretRoom?: boolean;
 }
 
-const RewardScreen: React.FC<RewardScreenProps> = ({ choices, onChoose }) => {
+const RewardScreen: React.FC<RewardScreenProps> = ({ choices, onChoose, isSecretRoom }) => {
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center z-20 p-2 sm:p-4"
       style={{ background: 'rgba(20, 10, 5, 0.92)' }}>
