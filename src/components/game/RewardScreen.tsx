@@ -5,6 +5,7 @@ import { RunBuffWithRarity, RARITY_COLORS, RARITY_LABELS } from '../../game/buff
 interface RewardScreenProps {
   choices: RunBuff[];
   onChoose: (buff: RunBuff) => void;
+  isSecretRoom?: boolean;
 }
 
 const RewardScreen: React.FC<RewardScreenProps> = ({ choices, onChoose }) => {
