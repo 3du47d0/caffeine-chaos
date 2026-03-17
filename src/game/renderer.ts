@@ -551,6 +551,10 @@ function drawExitPortal(ctx: CanvasRenderingContext2D, state: GameState) {
   if (secret?.active) {
     drawPortal(ctx, secret.pos.x, secret.pos.y, 'secret');
   }
+  const reward = state.rewardPortal;
+  if (reward?.active) {
+    drawPortal(ctx, reward.pos.x, reward.pos.y, 'reward');
+  }
 }
 
 function drawPortal(ctx: CanvasRenderingContext2D, x: number, y: number, type: string) {
