@@ -561,7 +561,20 @@ function drawPortal(ctx: CanvasRenderingContext2D, x: number, y: number, type: s
   const t = Date.now() / 400;
   const pulse = 1 + Math.sin(t) * 0.15;
 
-  if (type === 'secret') {
+  if (type === 'reward') {
+    ctx.globalAlpha = 0.3 + Math.sin(t) * 0.1;
+    drawPixelCircle(ctx, x, y, 34 * pulse, '#AA44FF');
+    ctx.globalAlpha = 0.5;
+    drawPixelCircle(ctx, x, y, 22 * pulse, '#FFD700');
+    ctx.globalAlpha = 1;
+    drawPixelCircle(ctx, x, y, 12, '#FFD700');
+
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('🌀 PORTAL', x, y - 36);
+    ctx.fillText('MISTERIOSO', x, y - 26);
+  } else if (type === 'secret') {
     ctx.globalAlpha = 0.3 + Math.sin(t) * 0.1;
     drawPixelCircle(ctx, x, y, 36 * pulse, '#8B00FF');
     ctx.globalAlpha = 0.5;
