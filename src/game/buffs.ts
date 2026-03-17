@@ -66,7 +66,6 @@ export function drawRewards(count: number = 3): RunBuffWithRarity[] {
   const result: RunBuffWithRarity[] = [];
   const usedNames = new Set<string>();
 
-  // Guarantee at least one non-common
   const guaranteeRare = Math.random() < 0.5;
 
   for (let i = 0; i < count; i++) {
@@ -77,7 +76,6 @@ export function drawRewards(count: number = 3): RunBuffWithRarity[] {
 
     const candidates = RUN_BUFF_POOL.filter(b => b.rarity === rarity && !usedNames.has(b.name));
     if (candidates.length === 0) {
-      // fallback to any rarity
       const fallback = RUN_BUFF_POOL.filter(b => !usedNames.has(b.name));
       if (fallback.length > 0) {
         const pick = fallback[Math.floor(Math.random() * fallback.length)];
@@ -87,6 +85,22 @@ export function drawRewards(count: number = 3): RunBuffWithRarity[] {
       continue;
     }
 
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    result.push({ ...pick });
+    usedNames.add(pick.name);
+  }
+  return result;
+}
+
+// Draw only epic/legendary rewards for secret reward rooms
+export function drawHighRarityRewards(count: number = 3): RunBuffWithRarity[] {
+  const highPool = RUN_BUFF_POOL.filter(b => b.rarity === 'epic' || b.rarity === 'legendary');
+  const result: RunBuffWithRarity[] = [];
+  const usedNames = new Set<string>();
+
+  for (let i = 0; i < count; i++) {
+    const candidates = highPool.filter(b => !usedNames.has(b.name));
+    if (candidates.length === 0) break;
     const pick = candidates[Math.floor(Math.random() * candidates.length)];
     result.push({ ...pick });
     usedNames.add(pick.name);

@@ -141,6 +141,18 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState) {
 
 function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
   const { pos, size, type, hp, maxHp } = enemy;
+  const isMiniBoss = (enemy as any).isMiniBoss;
+
+  // Mini-boss aura
+  if (isMiniBoss) {
+    const t = Date.now() / 300;
+    ctx.globalAlpha = 0.25 + Math.sin(t) * 0.1;
+    ctx.fillStyle = '#FF4444';
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, size + 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
 
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath();
@@ -205,7 +217,13 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
     const barX = pos.x - barW / 2;
     const barY = pos.y - size - 12;
     drawPixelRect(ctx, barX, barY, barW, barH, COLORS.healthEmpty);
-    drawPixelRect(ctx, barX, barY, barW * (hp / maxHp), barH, '#C0392B');
+    drawPixelRect(ctx, barX, barY, barW * (hp / maxHp), barH, isMiniBoss ? '#FF4444' : '#C0392B');
+    if (isMiniBoss) {
+      ctx.fillStyle = '#FF4444';
+      ctx.font = 'bold 8px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('★ MINI-CHEFE', pos.x, barY - 4);
+    }
   }
 }
 
@@ -533,13 +551,30 @@ function drawExitPortal(ctx: CanvasRenderingContext2D, state: GameState) {
   if (secret?.active) {
     drawPortal(ctx, secret.pos.x, secret.pos.y, 'secret');
   }
+  const reward = state.rewardPortal;
+  if (reward?.active) {
+    drawPortal(ctx, reward.pos.x, reward.pos.y, 'reward');
+  }
 }
 
 function drawPortal(ctx: CanvasRenderingContext2D, x: number, y: number, type: string) {
   const t = Date.now() / 400;
   const pulse = 1 + Math.sin(t) * 0.15;
 
-  if (type === 'secret') {
+  if (type === 'reward') {
+    ctx.globalAlpha = 0.3 + Math.sin(t) * 0.1;
+    drawPixelCircle(ctx, x, y, 34 * pulse, '#AA44FF');
+    ctx.globalAlpha = 0.5;
+    drawPixelCircle(ctx, x, y, 22 * pulse, '#FFD700');
+    ctx.globalAlpha = 1;
+    drawPixelCircle(ctx, x, y, 12, '#FFD700');
+
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('🌀 PORTAL', x, y - 36);
+    ctx.fillText('MISTERIOSO', x, y - 26);
+  } else if (type === 'secret') {
     ctx.globalAlpha = 0.3 + Math.sin(t) * 0.1;
     drawPixelCircle(ctx, x, y, 36 * pulse, '#8B00FF');
     ctx.globalAlpha = 0.5;

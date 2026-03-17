@@ -84,19 +84,16 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     progress['massacre'] = progress['massacre'] || { current: 0, unlocked: false };
     progress['massacre'].current += state.runStats.enemiesKilled;
 
-    // Speedrunner: complete game in < 5 minutes (18000 frames at 60fps)
     if ((state.phase === 'victory' || state.phase === 'secret_victory') && state.runTimer < 18000) {
       progress['speedrunner'] = progress['speedrunner'] || { current: 0, unlocked: false };
       progress['speedrunner'].current = 1;
     }
 
-    // Perfect boss: defeated a boss with 0 room damage taken
     if (state.runStats.perfectBoss) {
       progress['perfect_boss'] = progress['perfect_boss'] || { current: 0, unlocked: false };
       progress['perfect_boss'].current = 1;
     }
 
-    // No-hit floor
     if (state.runStats.perfectFloor) {
       progress['no_hit_floor'] = progress['no_hit_floor'] || { current: 0, unlocked: false };
       progress['no_hit_floor'].current = 1;
@@ -188,6 +185,16 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     return musicManager.toggleMute();
   }, [musicManager]);
 
+  const hardReset = useCallback(() => {
+    localStorage.removeItem('cafe_chaos_save');
+    localStorage.removeItem('cafe_chaos_achievements');
+    savedGoldRef.current = 0;
+    upgradesRef.current = { maxHpBonus: 0, damageBonus: 0, speedBonus: 0, dashCdrBonus: 0 };
+    setGold(0);
+    stateRef.current = null;
+    setPhase('lobby');
+  }, []);
+
   // Game loop
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -211,12 +218,10 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         if (input.moveY > 0.3) state.keys.add('s');
         if (input.dash) state.keys.add(' ');
         if (input.ultimate) state.keys.add('q');
-        // Forward R key for quick restart
         if (inputManager.keys.has('r')) state.keys.add('r');
         state.mousePos = { x: input.aimX, y: input.aimY };
         state.mouseDown = input.shoot;
 
-        // Handle quick restart trigger
         if ((state as any)._quickRestart) {
           (state as any)._quickRestart = false;
           startRun(state.difficulty as any, state.characterId as any);
@@ -238,7 +243,6 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         setRoomTimes([...state.roomTimes]);
         setIsBossRoom(state.isBossRoom);
 
-        // Music mode based on room type
         const currentRoom = state.rooms[state.currentRoom];
         const isNowBoss = currentRoom?.isBossRoom && currentRoom.boss && currentRoom.boss.hp > 0;
         const isSecretBoss = currentRoom?.isSecretBossRoom;
@@ -252,14 +256,14 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         wasBossRoom = !!isNowBoss;
       }
 
-      if (state && (state.phase === 'reward' || state.phase === 'shop')) {
+      if (state && (state.phase === 'reward' || state.phase === 'shop' || state.phase === 'reward_room')) {
         render(ctx, state);
       }
 
       if (state && state.phase !== lastPhase) {
         lastPhase = state.phase;
         setPhase(state.phase);
-        if (state.phase === 'reward') {
+        if (state.phase === 'reward' || state.phase === 'reward_room') {
           setRewardChoices([...state.rewardChoices]);
           try {
             const ac = new AudioContext();
@@ -283,17 +287,13 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           setGold(savedGoldRef.current);
           updateAchievements(state);
 
-          // Character unlock checks on victory
           if (state.phase === 'victory' || state.phase === 'secret_victory') {
-            // French Press: complete floor 3 (index 2) without damage
             if (state.floor >= 2 && state.runStats.floorDamageTaken === 0) {
               unlockCharacter('unlock_french_press');
             }
-            // Grão Torrado: win on Hard in under 5 min (18000 frames)
             if (state.difficulty === 'hard' && state.runTimer < 18000) {
               unlockCharacter('unlock_grao_torrado');
             }
-            // Mocha: defeat 3+ bosses without using dash
             if (state.runStats.bossesDefeated >= 3 && state.runStats.dashesUsed === 0) {
               unlockCharacter('unlock_mocha');
             }
@@ -319,7 +319,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
     runTimer, roomTimes, inputManager, isBossRoom,
     startRun, returnToLobby, chooseBuff, toggleMusic,
-    shopBuy, shopLeave,
+    shopBuy, shopLeave, hardReset,
     upgrades: upgradesRef.current,
     unlockedAchievement, clearAchievementNotification: () => setUnlockedAchievement(null),
     musicMuted: musicManager.isMuted(),

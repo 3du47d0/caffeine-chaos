@@ -5,20 +5,22 @@ import { RunBuffWithRarity, RARITY_COLORS, RARITY_LABELS } from '../../game/buff
 interface RewardScreenProps {
   choices: RunBuff[];
   onChoose: (buff: RunBuff) => void;
+  isSecretRoom?: boolean;
 }
 
-const RewardScreen: React.FC<RewardScreenProps> = ({ choices, onChoose }) => {
+const RewardScreen: React.FC<RewardScreenProps> = ({ choices, onChoose, isSecretRoom }) => {
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center z-20 p-2 sm:p-4"
       style={{ background: 'rgba(20, 10, 5, 0.92)' }}>
       {/* Header */}
       <div className="mb-4 sm:mb-8 text-center animate-fade-in">
         <div className="text-3xl sm:text-4xl mb-2 sm:mb-3">☕</div>
-        <h2 className="font-pixel text-coffee-gold text-glow text-sm sm:text-xl mb-1 tracking-widest">
-          UPGRADE DE MENU
+        <h2 className="font-pixel text-glow text-sm sm:text-xl mb-1 tracking-widest"
+          style={{ color: isSecretRoom ? '#AA44FF' : undefined }}>
+          {isSecretRoom ? '🌀 SALA SECRETA' : 'UPGRADE DE MENU'}
         </h2>
         <p className="font-pixel text-foreground/60" style={{ fontSize: '9px' }}>
-          Chefe derrotado! Escolha sua recompensa:
+          {isSecretRoom ? 'Portal misterioso! Recompensas raras:' : 'Chefe derrotado! Escolha sua recompensa:'}
         </p>
       </div>
 

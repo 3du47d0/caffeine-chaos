@@ -31,6 +31,10 @@ export interface Enemy extends Entity {
   moveTimer: number;
   targetPos: Vec2;
   dropGold: number;
+  isMiniBoss?: boolean;
+  // Enemy abilities
+  dashTimer?: number;
+  abilityTimer?: number;
 }
 
 export interface Boss extends Entity {
@@ -81,6 +85,7 @@ export interface Room {
   isSecretBossRoom?: boolean;
   isShopRoom?: boolean;
   shopVisited?: boolean;
+  isRewardRoom?: boolean;
 }
 
 export interface Door {
@@ -99,7 +104,7 @@ export interface Wall {
 export interface ExitPortal {
   pos: Vec2;
   active: boolean;
-  type?: 'normal' | 'finish' | 'secret';
+  type?: 'normal' | 'finish' | 'secret' | 'reward';
 }
 
 // ---- Run Buff System ----
@@ -171,7 +176,7 @@ export interface RunStats {
 }
 
 export interface GameState {
-  phase: 'lobby' | 'playing' | 'reward' | 'gameover' | 'victory' | 'secret_victory' | 'shop';
+  phase: 'lobby' | 'playing' | 'reward' | 'gameover' | 'victory' | 'secret_victory' | 'shop' | 'reward_room';
   player: Player;
   rooms: Room[];
   currentRoom: number;
@@ -209,6 +214,11 @@ export interface GameState {
   characterId: string;
   // Quick restart
   restartHoldTimer: number;
+  // Reward portal
+  rewardPortal: ExitPortal | null;
+  // Track return destination from reward room
+  rewardReturnRoom: number;
+  rewardReturnFloor: number;
 }
 
 export interface Particle {

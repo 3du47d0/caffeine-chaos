@@ -10,15 +10,24 @@ interface LobbyProps {
   isTouchDevice?: boolean;
   onToggleMusic?: () => void;
   musicMuted?: boolean;
+  onHardReset?: () => void;
 }
 
-const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevice, onToggleMusic, musicMuted }) => {
+const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevice, onToggleMusic, musicMuted, onHardReset }) => {
   const [showAchievements, setShowAchievements] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>('medium');
   const [selectedCharacter, setSelectedCharacter] = useState<CharacterId>('barista');
   const [tab, setTab] = useState<'main' | 'characters'>('main');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const visibleDifficulties = DIFFICULTIES.filter(d => !d.hidden || isDifficultyUnlocked(d.id));
+
+  const handleHardReset = () => {
+    if (onHardReset) onHardReset();
+    setShowResetConfirm(false);
+    setSelectedCharacter('barista');
+    setSelectedDifficulty('medium');
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-background p-3 sm:p-4 overflow-y-auto">
@@ -184,15 +193,54 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
           )}
         </div>
 
-        {onToggleMusic && (
+        {/* Music + Reset buttons */}
+        <div className="flex flex-col items-center gap-2 mt-3">
+          {onToggleMusic && (
+            <button
+              onClick={onToggleMusic}
+              className="font-pixel text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {musicMuted ? '🔇 Música OFF' : '🔊 Música ON'}
+            </button>
+          )}
           <button
-            onClick={onToggleMusic}
-            className="mt-3 font-pixel text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setShowResetConfirm(true)}
+            className="font-pixel text-xs text-destructive/60 hover:text-destructive transition-colors"
           >
-            {musicMuted ? '🔇 Música OFF' : '🔊 Música ON'}
+            🗑️ Reiniciar Progresso
           </button>
-        )}
+        </div>
       </div>
+
+      {/* Hard Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-card pixel-border rounded-lg p-6 max-w-sm w-full text-center">
+            <div className="text-4xl mb-3">⚠️</div>
+            <h3 className="font-pixel text-sm text-destructive mb-2">REINICIAR PROGRESSO?</h3>
+            <p className="font-pixel text-foreground/60 mb-4" style={{ fontSize: '9px' }}>
+              Isto irá apagar TODO o seu progresso: conquistas, ouro, personagens desbloqueados e dificuldades.
+              Esta ação NÃO pode ser desfeita!
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="font-pixel text-xs px-4 py-2 bg-secondary text-secondary-foreground rounded-lg pixel-border
+                           hover:scale-105 active:scale-95 transition-transform"
+              >
+                ✖ CANCELAR
+              </button>
+              <button
+                onClick={handleHardReset}
+                className="font-pixel text-xs px-4 py-2 bg-destructive text-destructive-foreground rounded-lg pixel-border
+                           hover:scale-105 active:scale-95 transition-transform"
+              >
+                🗑️ APAGAR TUDO
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAchievements && (
         <AchievementsScreen onClose={() => setShowAchievements(false)} />
