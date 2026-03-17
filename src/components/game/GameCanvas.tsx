@@ -16,7 +16,7 @@ const GameCanvas: React.FC = () => {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
     runTimer, roomTimes, inputManager, isBossRoom,
     startRun, returnToLobby, chooseBuff, toggleMusic,
-    shopBuy, shopLeave,
+    shopBuy, shopLeave, hardReset,
     upgrades, unlockedAchievement, clearAchievementNotification, musicMuted,
   } = useGame(canvasRef);
 
@@ -86,6 +86,7 @@ const GameCanvas: React.FC = () => {
           isTouchDevice={showTouch}
           onToggleMusic={toggleMusic}
           musicMuted={musicMuted}
+          onHardReset={hardReset}
         />
       )}
 
@@ -102,11 +103,15 @@ const GameCanvas: React.FC = () => {
             className="pixel-border rounded-lg cursor-crosshair w-full h-full"
             style={{ imageRendering: 'pixelated' }}
           />
-          {(phase === 'playing' || phase === 'reward' || phase === 'shop') && (
+          {(phase === 'playing' || phase === 'reward' || phase === 'shop' || phase === 'reward_room') && (
             <HUD hp={hp} maxHp={maxHp} gold={runGold} dashCd={dashCd} ultCd={ultCd} floor={floor} shield={playerShield} />
           )}
-          {phase === 'reward' && rewardChoices.length > 0 && (
-            <RewardScreen choices={rewardChoices} onChoose={chooseBuff} />
+          {(phase === 'reward' || phase === 'reward_room') && rewardChoices.length > 0 && (
+            <RewardScreen
+              choices={rewardChoices}
+              onChoose={chooseBuff}
+              isSecretRoom={phase === 'reward_room'}
+            />
           )}
           {phase === 'shop' && (
             <ShopScreen
@@ -133,7 +138,6 @@ const GameCanvas: React.FC = () => {
           <TouchControls inputManager={inputManager} />
         )}
 
-        {/* Music toggle button */}
         <button
           onClick={toggleMusic}
           className="fixed top-2 right-2 z-40 w-8 h-8 rounded-full bg-background/50 backdrop-blur-sm
