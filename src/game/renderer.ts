@@ -29,7 +29,7 @@ function drawFloor(ctx: CanvasRenderingContext2D, theme: FloorTheme, isSecret?: 
     // Frost sparkles
     ctx.globalAlpha = 0.15;
     ctx.fillStyle = '#87CEEB';
-    const t = Date.now() / 2000;
+    const t = _frameTime / 2000;
     for (let i = 0; i < 8; i++) {
       const fx = ((i * 137 + t * 50) % CANVAS_WIDTH);
       const fy = ((i * 211 + t * 30) % CANVAS_HEIGHT);
@@ -128,7 +128,7 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState) {
   }
 
   if (player.shield) {
-    const t = Date.now() / 300;
+    const t = _frameTime / 300;
     ctx.strokeStyle = '#87CEEB';
     ctx.lineWidth = 2.5;
     ctx.globalAlpha = 0.7 + Math.sin(t) * 0.2;
@@ -145,7 +145,7 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
 
   // Mini-boss aura
   if (isMiniBoss) {
-    const t = Date.now() / 300;
+    const t = _frameTime / 300;
     ctx.globalAlpha = 0.25 + Math.sin(t) * 0.1;
     ctx.fillStyle = '#FF4444';
     ctx.beginPath();
@@ -229,7 +229,7 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
 
 function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
   const { pos, size, type, hp, maxHp, angle } = boss;
-  const t = Date.now() / 300;
+  const t = _frameTime / 300;
 
   if (type === 'steam_king' && boss.invisibleTimer > 0) {
     ctx.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1;
@@ -417,7 +417,7 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
 
 function drawProjectile(ctx: CanvasRenderingContext2D, proj: Projectile) {
   if (proj.isBurnZone) {
-    const t = Date.now() / 200;
+    const t = _frameTime / 200;
     const alpha = (0.3 + Math.sin(t) * 0.1) * (proj.lifetime / 120);
     ctx.globalAlpha = alpha;
     const grad = ctx.createRadialGradient(proj.pos.x, proj.pos.y, 4, proj.pos.x, proj.pos.y, proj.size);
@@ -451,7 +451,7 @@ function drawProjectile(ctx: CanvasRenderingContext2D, proj: Projectile) {
 
 function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup) {
   const { pos, type } = pickup;
-  const bob = Math.sin(Date.now() / 300) * 3;
+  const bob = Math.sin(_frameTime / 300) * 3;
 
   if (type === 'health') {
     ctx.fillStyle = '#FFF';
@@ -460,7 +460,7 @@ function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup) {
     drawPixelRect(ctx, pos.x - 6, pos.y - 4 + bob, 12, 5, '#5C3D2E');
     ctx.strokeStyle = 'rgba(255,255,255,0.5)';
     ctx.lineWidth = 1;
-    const t = Date.now() / 200;
+    const t = _frameTime / 200;
     ctx.beginPath();
     ctx.moveTo(pos.x - 3, pos.y - 8 + bob);
     ctx.quadraticCurveTo(pos.x - 5, pos.y - 14 + bob, pos.x - 2, pos.y - 18 + bob + Math.sin(t) * 2);
@@ -478,7 +478,7 @@ function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup) {
     ctx.moveTo(pos.x, pos.y - 4 + bob);
     ctx.lineTo(pos.x, pos.y + 4 + bob);
     ctx.stroke();
-    ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 200) * 0.1;
+    ctx.globalAlpha = 0.3 + Math.sin(_frameTime / 200) * 0.1;
     drawPixelCircle(ctx, pos.x, pos.y + bob, 10, COLORS.gold);
     ctx.globalAlpha = 1;
   }
@@ -558,7 +558,7 @@ function drawExitPortal(ctx: CanvasRenderingContext2D, state: GameState) {
 }
 
 function drawPortal(ctx: CanvasRenderingContext2D, x: number, y: number, type: string) {
-  const t = Date.now() / 400;
+  const t = _frameTime / 400;
   const pulse = 1 + Math.sin(t) * 0.15;
 
   if (type === 'reward') {
@@ -746,7 +746,15 @@ function drawRestartIndicator(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.fillText('Solte R para cancelar', cx, cy + radius + 34);
 }
 
+// Cached time value for current frame — avoids multiple Date.now() calls
+let _frameTime = 0;
+
+export function getFrameTime(): number { return _frameTime; }
+
 export function render(ctx: CanvasRenderingContext2D, state: GameState) {
+  // Cache Date.now() once per frame for all draw functions
+  _frameTime = Date.now();
+
   ctx.save();
 
   if (state.screenShake > 0) {
@@ -762,18 +770,21 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
 
   const room = state.rooms[state.currentRoom];
   const isSecret = room.isSecretBossRoom;
-  const theme = getFloorTheme(state.floor);
+  const theme = state._cache?.floorTheme || getFloorTheme(state.floor);
 
   drawFloor(ctx, theme, isSecret);
   drawWalls(ctx, room, theme);
   drawDoors(ctx, room);
 
-  for (const pickup of room.pickups) drawPickup(ctx, pickup);
+  // Batch: draw all pickups
+  for (let i = 0; i < room.pickups.length; i++) drawPickup(ctx, room.pickups[i]);
   drawExitPortal(ctx, state);
 
-  for (const proj of state.projectiles) drawProjectile(ctx, proj);
+  // Batch: draw all projectiles
+  for (let i = 0; i < state.projectiles.length; i++) drawProjectile(ctx, state.projectiles[i]);
 
-  for (const enemy of room.enemies) drawEnemy(ctx, enemy);
+  // Batch: draw all enemies
+  for (let i = 0; i < room.enemies.length; i++) drawEnemy(ctx, room.enemies[i]);
   if (room.boss && room.boss.hp > 0) drawBoss(ctx, room.boss);
 
   drawParticles(ctx, state.particles);

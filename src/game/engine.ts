@@ -17,10 +17,26 @@ import { getDifficulty, DifficultyId, unlockImpossible } from './difficulty';
 import { unlockSupremo } from './characters';
 import { getFloorTheme } from './floors';
 
+// ---- Pre-allocated reusable vectors to avoid GC ----
+const _tmpVec: Vec2 = { x: 0, y: 0 };
+const _tmpVec2: Vec2 = { x: 0, y: 0 };
+const _tmpNorm: Vec2 = { x: 0, y: 0 };
+
 function dist(a: Vec2, b: Vec2): number {
-  return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
 }
 
+// In-place normalize into output vec, returns output
+function normalizeInto(v: Vec2, out: Vec2): Vec2 {
+  const d = Math.sqrt(v.x * v.x + v.y * v.y);
+  if (d === 0) { out.x = 0; out.y = 0; }
+  else { out.x = v.x / d; out.y = v.y / d; }
+  return out;
+}
+
+// Allocating normalize - only use in non-hot paths
 function normalize(v: Vec2): Vec2 {
   const d = Math.sqrt(v.x * v.x + v.y * v.y);
   if (d === 0) return { x: 0, y: 0 };
@@ -28,7 +44,7 @@ function normalize(v: Vec2): Vec2 {
 }
 
 function clamp(v: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, v));
+  return v < min ? min : v > max ? max : v;
 }
 
 function spawnParticles(state: GameState, pos: Vec2, color: string, count: number, speed: number = 3) {
@@ -54,6 +70,25 @@ function defaultRunStats(): RunStats {
     enemiesKilled: 0, damageTaken: 0, bossesDefeated: 0, roomsCleared: 0,
     goldCollected: 0, dashesUsed: 0, ultimatesUsed: 0, perfectRooms: 0,
     fastRooms: 0, totalDamageDealt: 0, perfectBoss: false, floorDamageTaken: 0, perfectFloor: false,
+  };
+}
+
+// ---- Cached per-run computations ----
+// These are computed once at run start and cached on state
+export interface RunCache {
+  achieveBonuses: { damageBonus: number; hpBonus: number; speedBonus: number; goldBonus: number; dashBonus: number };
+  charData: ReturnType<typeof getCharacter>;
+  diffData: ReturnType<typeof getDifficulty>;
+  floorTheme: ReturnType<typeof getFloorTheme>;
+}
+
+function buildRunCache(state: GameState): RunCache {
+  const progress = loadAchievementProgress();
+  return {
+    achieveBonuses: getAchievementBonuses(progress),
+    charData: getCharacter(state.characterId as CharacterId),
+    diffData: getDifficulty(state.difficulty as DifficultyId),
+    floorTheme: getFloorTheme(state.floor),
   };
 }
 
@@ -86,7 +121,7 @@ export function createInitialState(
     shield: false,
   };
 
-  return {
+  const state: GameState = {
     phase: 'playing',
     player,
     rooms,
@@ -127,7 +162,11 @@ export function createInitialState(
     rewardPortal: null,
     rewardReturnRoom: 0,
     rewardReturnFloor: 0,
+    _cache: null as any,
   };
+
+  state._cache = buildRunCache(state);
+  return state;
 }
 
 export function buyInRunUpgrade(state: GameState, id: keyof Upgrades, cost: number): boolean {
@@ -138,6 +177,8 @@ export function buyInRunUpgrade(state: GameState, id: keyof Upgrades, cost: numb
       state.player.maxHp += 25;
       state.player.hp = Math.min(state.player.hp + 25, state.player.maxHp);
     }
+    // Refresh cache since upgrades changed
+    state._cache = buildRunCache(state);
     return true;
   }
   return false;
@@ -163,11 +204,13 @@ export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
       break;
   }
 
+  // Refresh cache since buffs changed
+  state._cache = buildRunCache(state);
+
   // If in reward_room phase, return to normal play after picking
   if (state.phase === 'reward_room') {
     state.phase = 'playing';
     state.rewardChoices = [];
-    // Transition back to the room we came from
     state.transitionTimer = 60;
     state.transitionTarget = { floor: state.rewardReturnFloor, room: state.rewardReturnRoom };
     return state;
@@ -208,25 +251,25 @@ function updateBoss(state: GameState, boss: Boss) {
   boss.shootTimer--;
   boss.summonTimer--;
 
-  const damageMult = getDamageMult(state);
-
   switch (boss.type) {
     case 'grinder': {
       if (boss.moveTimer <= 0) {
         boss.moveTimer = 30;
-        const toPlayer = normalize({ x: player.pos.x - boss.pos.x, y: player.pos.y - boss.pos.y });
-        boss.pos.x += toPlayer.x * 2.5;
-        boss.pos.y += toPlayer.y * 2.5;
+        _tmpVec.x = player.pos.x - boss.pos.x;
+        _tmpVec.y = player.pos.y - boss.pos.y;
+        normalizeInto(_tmpVec, _tmpNorm);
+        boss.pos.x += _tmpNorm.x * 2.5;
+        boss.pos.y += _tmpNorm.y * 2.5;
       }
       if (boss.shootTimer <= 0) {
         boss.shootTimer = 80;
         for (let i = 0; i < 8; i++) {
           const a = (Math.PI * 2 * i) / 8 + boss.angle;
-          state.projectiles.push({
-            pos: { x: boss.pos.x, y: boss.pos.y },
-            vel: { x: Math.cos(a) * 3.5, y: Math.sin(a) * 3.5 },
-            size: 5, damage: 15, friendly: false, lifetime: 80,
-          });
+          state.projectiles.push(acquireProjectile(
+            boss.pos.x, boss.pos.y,
+            Math.cos(a) * 3.5, Math.sin(a) * 3.5,
+            5, 15, false, 80,
+          ));
         }
       }
       break;
@@ -243,10 +286,9 @@ function updateBoss(state: GameState, boss: Boss) {
         for (let i = 0; i < 3; i++) {
           const tx = 100 + Math.random() * (CANVAS_WIDTH - 200);
           const ty = 100 + Math.random() * (CANVAS_HEIGHT - 200);
-          state.projectiles.push({
-            pos: { x: tx, y: ty }, vel: { x: 0, y: 0 },
-            size: 28, damage: 8, friendly: false, lifetime: 120, isBurnZone: true,
-          });
+          state.projectiles.push(acquireProjectile(
+            tx, ty, 0, 0, 28, 8, false, 120, { isBurnZone: true },
+          ));
         }
       }
       if (Math.floor(boss.angle * 10) % 60 === 0) {
@@ -264,11 +306,11 @@ function updateBoss(state: GameState, boss: Boss) {
         const count = 12;
         for (let i = 0; i < count; i++) {
           const a = (Math.PI * 2 * i) / count + (boss.phase * Math.PI) / count;
-          state.projectiles.push({
-            pos: { x: boss.pos.x, y: boss.pos.y },
-            vel: { x: Math.cos(a) * 2.8, y: Math.sin(a) * 2.8 },
-            size: 6, damage: 12, friendly: false, lifetime: 100,
-          });
+          state.projectiles.push(acquireProjectile(
+            boss.pos.x, boss.pos.y,
+            Math.cos(a) * 2.8, Math.sin(a) * 2.8,
+            6, 12, false, 100,
+          ));
         }
       }
       if (boss.summonTimer <= 0) {
@@ -291,50 +333,57 @@ function updateBoss(state: GameState, boss: Boss) {
       if (hpRatio > 0.7) {
         if (boss.moveTimer <= 0) {
           boss.moveTimer = 20;
-          const toPlayer = normalize({ x: player.pos.x - boss.pos.x, y: player.pos.y - boss.pos.y });
-          boss.pos.x += toPlayer.x * 3;
-          boss.pos.y += toPlayer.y * 3;
+          _tmpVec.x = player.pos.x - boss.pos.x;
+          _tmpVec.y = player.pos.y - boss.pos.y;
+          normalizeInto(_tmpVec, _tmpNorm);
+          boss.pos.x += _tmpNorm.x * 3;
+          boss.pos.y += _tmpNorm.y * 3;
         }
         if (boss.shootTimer <= 0) {
           boss.shootTimer = 40;
           for (let i = 0; i < 12; i++) {
             const a = (Math.PI * 2 * i) / 12 + boss.angle;
-            state.projectiles.push({
-              pos: { x: boss.pos.x, y: boss.pos.y },
-              vel: { x: Math.cos(a) * 4, y: Math.sin(a) * 4 },
-              size: 5, damage: 18, friendly: false, lifetime: 90,
-            });
+            state.projectiles.push(acquireProjectile(
+              boss.pos.x, boss.pos.y,
+              Math.cos(a) * 4, Math.sin(a) * 4,
+              5, 18, false, 90,
+            ));
           }
         }
       } else if (hpRatio > 0.4) {
         if (boss.moveTimer <= 0) {
           boss.moveTimer = 15;
-          const toPlayer = normalize({ x: player.pos.x - boss.pos.x, y: player.pos.y - boss.pos.y });
-          boss.pos.x += toPlayer.x * 4;
-          boss.pos.y += toPlayer.y * 4;
+          _tmpVec.x = player.pos.x - boss.pos.x;
+          _tmpVec.y = player.pos.y - boss.pos.y;
+          normalizeInto(_tmpVec, _tmpNorm);
+          boss.pos.x += _tmpNorm.x * 4;
+          boss.pos.y += _tmpNorm.y * 4;
         }
         if (boss.shootTimer <= 0) {
           boss.shootTimer = 30;
-          const dir = normalize({ x: player.pos.x - boss.pos.x, y: player.pos.y - boss.pos.y });
+          _tmpVec.x = player.pos.x - boss.pos.x;
+          _tmpVec.y = player.pos.y - boss.pos.y;
+          normalizeInto(_tmpVec, _tmpNorm);
           for (let i = -1; i <= 1; i++) {
             const spread = i * 0.3;
             const cos = Math.cos(spread), sin = Math.sin(spread);
-            const vx = dir.x * cos - dir.y * sin;
-            const vy = dir.x * sin + dir.y * cos;
-            state.projectiles.push({
-              pos: { x: boss.pos.x, y: boss.pos.y },
-              vel: { x: vx * 5, y: vy * 5 },
-              size: 6, damage: 20, friendly: false, lifetime: 80,
-            });
+            const vx = _tmpNorm.x * cos - _tmpNorm.y * sin;
+            const vy = _tmpNorm.x * sin + _tmpNorm.y * cos;
+            state.projectiles.push(acquireProjectile(
+              boss.pos.x, boss.pos.y,
+              vx * 5, vy * 5,
+              6, 20, false, 80,
+            ));
           }
         }
         if (boss.summonTimer <= 0) {
           boss.summonTimer = 120;
           for (let i = 0; i < 4; i++) {
-            state.projectiles.push({
-              pos: { x: 100 + Math.random() * (CANVAS_WIDTH - 200), y: 100 + Math.random() * (CANVAS_HEIGHT - 200) },
-              vel: { x: 0, y: 0 }, size: 35, damage: 10, friendly: false, lifetime: 150, isBurnZone: true, isVortex: true,
-            });
+            state.projectiles.push(acquireProjectile(
+              100 + Math.random() * (CANVAS_WIDTH - 200),
+              100 + Math.random() * (CANVAS_HEIGHT - 200),
+              0, 0, 35, 10, false, 150, { isBurnZone: true, isVortex: true },
+            ));
           }
         }
       } else {
@@ -353,18 +402,20 @@ function updateBoss(state: GameState, boss: Boss) {
           boss.shootTimer = 20;
           for (let i = 0; i < 6; i++) {
             const a = (Math.PI * 2 * i) / 6 + boss.enrageTimer! * 0.1;
-            state.projectiles.push({
-              pos: { x: boss.pos.x, y: boss.pos.y },
-              vel: { x: Math.cos(a) * 3.5, y: Math.sin(a) * 3.5 },
-              size: 5, damage: 15, friendly: false, lifetime: 100,
-            });
+            state.projectiles.push(acquireProjectile(
+              boss.pos.x, boss.pos.y,
+              Math.cos(a) * 3.5, Math.sin(a) * 3.5,
+              5, 15, false, 100,
+            ));
           }
-          const dir = normalize({ x: player.pos.x - boss.pos.x, y: player.pos.y - boss.pos.y });
-          state.projectiles.push({
-            pos: { x: boss.pos.x, y: boss.pos.y },
-            vel: { x: dir.x * 6, y: dir.y * 6 },
-            size: 8, damage: 25, friendly: false, lifetime: 60,
-          });
+          _tmpVec.x = player.pos.x - boss.pos.x;
+          _tmpVec.y = player.pos.y - boss.pos.y;
+          normalizeInto(_tmpVec, _tmpNorm);
+          state.projectiles.push(acquireProjectile(
+            boss.pos.x, boss.pos.y,
+            _tmpNorm.x * 6, _tmpNorm.y * 6,
+            8, 25, false, 60,
+          ));
         }
         if (boss.summonTimer <= 0) {
           boss.summonTimer = 150;
@@ -412,21 +463,19 @@ function takeDamage(state: GameState, amount: number) {
 }
 
 function getDamageMult(state: GameState): number {
-  const achieveBonuses = getAchievementBonuses(loadAchievementProgress());
-  const char = getCharacter(state.characterId as CharacterId);
-  return (1 + state.upgrades.damageBonus * 0.1 + achieveBonuses.damageBonus) * (1 + state.runBuffs.torrado * 0.2) * char.damageMult;
+  const cache = state._cache!;
+  return (1 + state.upgrades.damageBonus * 0.1 + cache.achieveBonuses.damageBonus) * (1 + state.runBuffs.torrado * 0.2) * cache.charData.damageMult;
 }
 
 function getSpeedMult(state: GameState): number {
-  const achieveBonuses = getAchievementBonuses(loadAchievementProgress());
-  const char = getCharacter(state.characterId as CharacterId);
-  return (1 + state.upgrades.speedBonus * 0.1 + achieveBonuses.speedBonus) * (1 + state.runBuffs.descaf * 0.2) * char.speedMult;
+  const cache = state._cache!;
+  return (1 + state.upgrades.speedBonus * 0.1 + cache.achieveBonuses.speedBonus) * (1 + state.runBuffs.descaf * 0.2) * cache.charData.speedMult;
 }
 
 function getShootCooldown(state: GameState): number {
-  const char = getCharacter(state.characterId as CharacterId);
+  const cache = state._cache!;
   const chantillyBonus = 1 - state.runBuffs.chantilly * 0.15;
-  return Math.max(3, Math.floor(PLAYER_SHOOT_COOLDOWN * chantillyBonus * char.shootCdMult));
+  return Math.max(3, Math.floor(PLAYER_SHOOT_COOLDOWN * chantillyBonus * cache.charData.shootCdMult));
 }
 
 // Reward portal chance (2-5%)
@@ -434,10 +483,18 @@ const REWARD_PORTAL_CHANCE = 0.04;
 
 export const RESTART_HOLD_FRAMES = 90; // 1.5s at 60fps
 
+// Fixed timestep: physics runs at 60fps regardless of display refresh rate
+const FIXED_DT = 1000 / 60;
+
 export function update(state: GameState): GameState {
   if (state.phase !== 'playing' && state.phase !== 'shop' && state.phase !== 'reward_room') return state;
   if (state.phase === 'shop') return state;
-  if (state.phase === 'reward_room') return state; // handled by UI
+  if (state.phase === 'reward_room') return state;
+
+  // Rebuild cache if missing (e.g. after floor transition)
+  if (!state._cache) {
+    state._cache = buildRunCache(state);
+  }
 
   // Quick restart: hold R
   if (state.keys.has('r')) {
@@ -457,17 +514,19 @@ export function update(state: GameState): GameState {
     if (state.transitionTimer === 30) {
       const target = state.transitionTarget!;
       if (target.floor !== state.floor) {
-        // Unload old floor completely
         cleanupRoomData(state);
         state.floor = target.floor;
         state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR, getDifficulty(state.difficulty as DifficultyId));
         state.currentRoom = 0;
+        // Refresh cache for new floor
+        state._cache = buildRunCache(state);
       } else {
         state.currentRoom = target.room;
       }
-      state.player.pos = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 };
-      state.projectiles = [];
-      state.particles = [];
+      state.player.pos.x = CANVAS_WIDTH / 2;
+      state.player.pos.y = CANVAS_HEIGHT / 2;
+      state.projectiles.length = 0;
+      state.particles.length = 0;
       state.exitPortal = null;
       state.secretPortal = null;
       state.rewardPortal = null;
@@ -489,12 +548,13 @@ export function update(state: GameState): GameState {
   if (state.fastBrewTimer > 0) state.fastBrewTimer--;
 
   // Fire hazards on furnace floor
-  const floorTheme = getFloorTheme(state.floor);
-  if (floorTheme.fireHazards && state.runTimer % 180 === 0) {
-    state.projectiles.push({
-      pos: { x: 80 + Math.random() * (CANVAS_WIDTH - 160), y: 80 + Math.random() * (CANVAS_HEIGHT - 160) },
-      vel: { x: 0, y: 0 }, size: 24, damage: 6, friendly: false, lifetime: 150, isBurnZone: true,
-    });
+  const cache = state._cache!;
+  if (cache.floorTheme.fireHazards && state.runTimer % 180 === 0) {
+    state.projectiles.push(acquireProjectile(
+      80 + Math.random() * (CANVAS_WIDTH - 160),
+      80 + Math.random() * (CANVAS_HEIGHT - 160),
+      0, 0, 24, 6, false, 150, { isBurnZone: true },
+    ));
   }
 
   const { player, keys } = state;
@@ -502,10 +562,9 @@ export function update(state: GameState): GameState {
   const margin = 50;
   const damageMult = getDamageMult(state);
   const speedMult = getSpeedMult(state);
-  const achieveBonuses = getAchievementBonuses(loadAchievementProgress());
-  const dashCdr = (1 - state.upgrades.dashCdrBonus * 0.15) * (1 - achieveBonuses.dashBonus);
+  const dashCdr = (1 - state.upgrades.dashCdrBonus * 0.15) * (1 - cache.achieveBonuses.dashBonus);
   const dashSpeedMult = 1 + state.runBuffs.descaf * 0.2;
-  const diff = getDifficulty(state.difficulty as DifficultyId);
+  const diff = cache.diffData;
 
   state.isBossRoom = room.isBossRoom;
 
@@ -522,12 +581,14 @@ export function update(state: GameState): GameState {
   if (keys.has('a') || keys.has('arrowleft')) dx -= 1;
   if (keys.has('d') || keys.has('arrowright')) dx += 1;
 
-  const moveDir = normalize({ x: dx, y: dy });
+  _tmpVec.x = dx; _tmpVec.y = dy;
+  normalizeInto(_tmpVec, _tmpNorm);
+  const moveDirX = _tmpNorm.x;
+  const moveDirY = _tmpNorm.y;
   const speed = player.dashTimer > 0 ? PLAYER_DASH_SPEED * dashSpeedMult : PLAYER_SPEED * speedMult;
 
   // Icy floor: add momentum/sliding
-  const theme = getFloorTheme(state.floor);
-  const isIcy = theme.icyFloor && player.dashTimer <= 0;
+  const isIcy = cache.floorTheme.icyFloor && player.dashTimer <= 0;
 
   if (player.dashTimer > 0) {
     player.pos.x += player.facing.x * speed;
@@ -536,29 +597,30 @@ export function update(state: GameState): GameState {
   } else if (isIcy) {
     const friction = 0.88;
     const accel = 0.35;
-    player.vel.x = player.vel.x * friction + moveDir.x * speed * accel;
-    player.vel.y = player.vel.y * friction + moveDir.y * speed * accel;
+    player.vel.x = player.vel.x * friction + moveDirX * speed * accel;
+    player.vel.y = player.vel.y * friction + moveDirY * speed * accel;
     player.pos.x += player.vel.x;
     player.pos.y += player.vel.y;
   } else {
-    player.vel.x = moveDir.x * speed;
-    player.vel.y = moveDir.y * speed;
+    player.vel.x = moveDirX * speed;
+    player.vel.y = moveDirY * speed;
     player.pos.x += player.vel.x;
     player.pos.y += player.vel.y;
   }
 
-  const toMouse = normalize({
-    x: state.mousePos.x - player.pos.x,
-    y: state.mousePos.y - player.pos.y,
-  });
-  if (toMouse.x !== 0 || toMouse.y !== 0) {
-    player.facing = toMouse;
+  _tmpVec.x = state.mousePos.x - player.pos.x;
+  _tmpVec.y = state.mousePos.y - player.pos.y;
+  normalizeInto(_tmpVec, _tmpNorm);
+  if (_tmpNorm.x !== 0 || _tmpNorm.y !== 0) {
+    player.facing.x = _tmpNorm.x;
+    player.facing.y = _tmpNorm.y;
   }
 
   player.pos.x = clamp(player.pos.x, margin + player.size, CANVAS_WIDTH - margin - player.size);
   player.pos.y = clamp(player.pos.y, margin + player.size, CANVAS_HEIGHT - margin - player.size);
 
-  for (const wall of room.walls) {
+  for (let wi = 0; wi < room.walls.length; wi++) {
+    const wall = room.walls[wi];
     const px = player.pos.x, py = player.pos.y, ps = player.size;
     if (rectCollision(px - ps, py - ps, ps * 2, ps * 2, wall.x, wall.y, wall.w, wall.h)) {
       const cx = wall.x + wall.w / 2;
@@ -588,7 +650,8 @@ export function update(state: GameState): GameState {
     state.runStats.dashesUsed++;
     spawnParticles(state, player.pos, '#87CEEB', 8);
 
-    for (const enemy of room.enemies) {
+    for (let ei = 0; ei < room.enemies.length; ei++) {
+      const enemy = room.enemies[ei];
       if (dist(player.pos, enemy.pos) < player.size + enemy.size + 20) {
         const dmg = 15 * damageMult;
         enemy.hp -= dmg;
@@ -613,7 +676,8 @@ export function update(state: GameState): GameState {
     spawnParticles(state, player.pos, '#FFF', 20, 5);
     state.screenShake = 8;
 
-    for (const enemy of room.enemies) {
+    for (let ei = 0; ei < room.enemies.length; ei++) {
+      const enemy = room.enemies[ei];
       if (dist(player.pos, enemy.pos) < 200) {
         const dmg = 50 * damageMult;
         enemy.hp -= dmg;
@@ -632,81 +696,85 @@ export function update(state: GameState): GameState {
   const shootCooldown = getShootCooldown(state);
   if (state.mouseDown && player.shootCooldown <= 0 && player.dashTimer <= 0) {
     player.shootCooldown = shootCooldown;
-    const dir = normalize({ x: state.mousePos.x - player.pos.x, y: state.mousePos.y - player.pos.y });
-    state.projectiles.push({
-      pos: { x: player.pos.x + dir.x * player.size, y: player.pos.y + dir.y * player.size },
-      vel: { x: dir.x * BEAN_SPEED, y: dir.y * BEAN_SPEED },
-      size: BEAN_SIZE,
-      damage: BEAN_DAMAGE * damageMult,
-      friendly: true,
-      lifetime: 60,
-    });
+    _tmpVec.x = state.mousePos.x - player.pos.x;
+    _tmpVec.y = state.mousePos.y - player.pos.y;
+    normalizeInto(_tmpVec, _tmpNorm);
+    state.projectiles.push(acquireProjectile(
+      player.pos.x + _tmpNorm.x * player.size,
+      player.pos.y + _tmpNorm.y * player.size,
+      _tmpNorm.x * BEAN_SPEED, _tmpNorm.y * BEAN_SPEED,
+      BEAN_SIZE, BEAN_DAMAGE * damageMult, true, 60,
+    ));
   }
 
   // Update enemies with new abilities
-  for (const enemy of room.enemies) {
+  const enemySpeedMult = diff.enemySpeedMult;
+  const enemyDmgMult = diff.enemyDamageMult;
+  const abilityChance = diff.enemyAbilityChance;
+
+  for (let ei = 0; ei < room.enemies.length; ei++) {
+    const enemy = room.enemies[ei];
     if (enemy.hp <= 0) continue;
     const config = ENEMY_CONFIGS[enemy.type];
-    const enemySpeedMult = diff.enemySpeedMult;
-    const enemyDmgMult = diff.enemyDamageMult;
-    const abilityChance = diff.enemyAbilityChance;
     const isMiniBoss = enemy.isMiniBoss;
 
     enemy.moveTimer--;
     if (enemy.moveTimer <= 0) {
       enemy.moveTimer = 40 + Math.random() * 40;
-      const toPlayer = normalize({ x: player.pos.x - enemy.pos.x, y: player.pos.y - enemy.pos.y });
+      _tmpVec.x = player.pos.x - enemy.pos.x;
+      _tmpVec.y = player.pos.y - enemy.pos.y;
+      normalizeInto(_tmpVec, _tmpNorm);
 
       // Ability: Dash toward player
       if (abilityChance > 0 && Math.random() < abilityChance * 0.3) {
-        // Enemy dash: move quickly toward player
-        enemy.pos.x += toPlayer.x * 60;
-        enemy.pos.y += toPlayer.y * 60;
+        enemy.pos.x += _tmpNorm.x * 60;
+        enemy.pos.y += _tmpNorm.y * 60;
         spawnParticles(state, enemy.pos, '#FF4444', 4, 2);
       } else {
-        enemy.targetPos = {
-          x: enemy.pos.x + toPlayer.x * 100 + (Math.random() - 0.5) * 80,
-          y: enemy.pos.y + toPlayer.y * 100 + (Math.random() - 0.5) * 80,
-        };
+        enemy.targetPos.x = enemy.pos.x + _tmpNorm.x * 100 + (Math.random() - 0.5) * 80;
+        enemy.targetPos.y = enemy.pos.y + _tmpNorm.y * 100 + (Math.random() - 0.5) * 80;
       }
     }
 
-    const toTarget = normalize({ x: enemy.targetPos.x - enemy.pos.x, y: enemy.targetPos.y - enemy.pos.y });
-    enemy.pos.x += toTarget.x * config.speed * enemySpeedMult;
-    enemy.pos.y += toTarget.y * config.speed * enemySpeedMult;
+    _tmpVec.x = enemy.targetPos.x - enemy.pos.x;
+    _tmpVec.y = enemy.targetPos.y - enemy.pos.y;
+    normalizeInto(_tmpVec, _tmpNorm);
+    enemy.pos.x += _tmpNorm.x * config.speed * enemySpeedMult;
+    enemy.pos.y += _tmpNorm.y * config.speed * enemySpeedMult;
     enemy.pos.x = clamp(enemy.pos.x, margin + enemy.size, CANVAS_WIDTH - margin - enemy.size);
     enemy.pos.y = clamp(enemy.pos.y, margin + enemy.size, CANVAS_HEIGHT - margin - enemy.size);
 
     enemy.shootTimer--;
     if (enemy.shootTimer <= 0 && (enemy.type === 'angry_cup' || enemy.type === 'drone' || isMiniBoss)) {
       enemy.shootTimer = isMiniBoss ? 40 + Math.random() * 30 : 60 + Math.random() * 60;
-      const dir = normalize({ x: player.pos.x - enemy.pos.x, y: player.pos.y - enemy.pos.y });
+      _tmpVec.x = player.pos.x - enemy.pos.x;
+      _tmpVec.y = player.pos.y - enemy.pos.y;
+      normalizeInto(_tmpVec, _tmpNorm);
       const dmg = Math.floor(config.damage * enemyDmgMult);
 
       // Ability: Spread shot for mini-bosses or high-ability enemies
       if (isMiniBoss || (abilityChance > 0 && Math.random() < abilityChance * 0.4)) {
-        // Fire 3 projectiles in a spread
         for (let s = -1; s <= 1; s++) {
           const spread = s * 0.25;
           const cos = Math.cos(spread), sin = Math.sin(spread);
-          const vx = dir.x * cos - dir.y * sin;
-          const vy = dir.x * sin + dir.y * cos;
-          state.projectiles.push({
-            pos: { x: enemy.pos.x, y: enemy.pos.y },
-            vel: { x: vx * 3.5, y: vy * 3.5 },
-            size: 4, damage: dmg, friendly: false, lifetime: 90,
-          });
+          const vx = _tmpNorm.x * cos - _tmpNorm.y * sin;
+          const vy = _tmpNorm.x * sin + _tmpNorm.y * cos;
+          state.projectiles.push(acquireProjectile(
+            enemy.pos.x, enemy.pos.y,
+            vx * 3.5, vy * 3.5,
+            4, dmg, false, 90,
+          ));
         }
       } else {
-        state.projectiles.push({
-          pos: { x: enemy.pos.x, y: enemy.pos.y },
-          vel: { x: dir.x * 3, y: dir.y * 3 },
-          size: 4, damage: dmg, friendly: false, lifetime: 90,
-        });
+        state.projectiles.push(acquireProjectile(
+          enemy.pos.x, enemy.pos.y,
+          _tmpNorm.x * 3, _tmpNorm.y * 3,
+          4, dmg, false, 90,
+        ));
       }
     }
 
-    // All enemy types can melee now (contact damage scales with difficulty)
+    // Contact damage
     if (player.invincibleTimer <= 0 && dist(player.pos, enemy.pos) < player.size + enemy.size) {
       takeDamage(state, Math.floor(config.damage * enemyDmgMult));
     }
@@ -717,29 +785,36 @@ export function update(state: GameState): GameState {
     updateBoss(state, room.boss);
   }
 
-  // Update projectiles
-  state.projectiles = state.projectiles.filter(proj => {
+  // Update projectiles — in-place compaction instead of .filter()
+  let writeIdx = 0;
+  for (let i = 0; i < state.projectiles.length; i++) {
+    const proj = state.projectiles[i];
     if (!proj.isBurnZone) {
       proj.pos.x += proj.vel.x;
       proj.pos.y += proj.vel.y;
     }
     proj.lifetime--;
 
+    let alive = true;
+
     if (proj.lifetime <= 0 || (!proj.isBurnZone && (proj.pos.x < 0 || proj.pos.x > CANVAS_WIDTH || proj.pos.y < 0 || proj.pos.y > CANVAS_HEIGHT))) {
-      return false;
+      alive = false;
     }
 
-    if (!proj.isBurnZone) {
-      for (const wall of room.walls) {
+    if (alive && !proj.isBurnZone) {
+      for (let wi = 0; wi < room.walls.length; wi++) {
+        const wall = room.walls[wi];
         if (proj.pos.x > wall.x && proj.pos.x < wall.x + wall.w && proj.pos.y > wall.y && proj.pos.y < wall.y + wall.h) {
           spawnParticles(state, proj.pos, '#888', 3);
-          return false;
+          alive = false;
+          break;
         }
       }
     }
 
-    if (proj.friendly) {
-      for (const enemy of room.enemies) {
+    if (alive && proj.friendly) {
+      for (let ei = 0; ei < room.enemies.length; ei++) {
+        const enemy = room.enemies[ei];
         if (enemy.hp <= 0) continue;
         if (dist(proj.pos, enemy.pos) < proj.size + enemy.size) {
           enemy.hp -= proj.damage;
@@ -750,14 +825,14 @@ export function update(state: GameState): GameState {
           }
           spawnParticles(state, proj.pos, '#6F4E37', 5);
           if (enemy.hp <= 0) {
-            state.goldCollected += enemy.dropGold + achieveBonuses.goldBonus;
+            state.goldCollected += enemy.dropGold + cache.achieveBonuses.goldBonus;
             state.runStats.enemiesKilled++;
             spawnParticles(state, enemy.pos, '#FFD700', 12);
           }
-          if (!proj.isBurnZone) return false;
+          if (!proj.isBurnZone) { alive = false; break; }
         }
       }
-      if (room.boss && room.boss.hp > 0) {
+      if (alive && room.boss && room.boss.hp > 0) {
         if (dist(proj.pos, room.boss.pos) < proj.size + room.boss.size) {
           room.boss.hp -= proj.damage;
           state.runStats.totalDamageDealt += proj.damage;
@@ -782,44 +857,57 @@ export function update(state: GameState): GameState {
               }
             }
           }
-          if (!proj.isBurnZone) return false;
+          if (!proj.isBurnZone) alive = false;
         }
       }
-    } else {
+    } else if (alive && !proj.friendly) {
       if (proj.isBurnZone) {
         if (player.invincibleTimer <= 0 && dist(proj.pos, player.pos) < proj.size + player.size * 0.5) {
           takeDamage(state, proj.damage);
           player.invincibleTimer = 20;
         }
-        return proj.lifetime > 0;
-      }
-      if (player.invincibleTimer <= 0 && dist(proj.pos, player.pos) < proj.size + player.size) {
-        takeDamage(state, proj.damage);
-        return false;
+        // keep alive based on lifetime (already decremented)
+      } else {
+        if (player.invincibleTimer <= 0 && dist(proj.pos, player.pos) < proj.size + player.size) {
+          takeDamage(state, proj.damage);
+          alive = false;
+        }
       }
     }
 
-    return true;
-  });
+    if (alive) {
+      state.projectiles[writeIdx++] = proj;
+    } else {
+      projectilePool.release(proj);
+    }
+  }
+  state.projectiles.length = writeIdx;
 
-  // Update particles with pool recycling
-  const aliveParticles: typeof state.particles = [];
-  for (const p of state.particles) {
+  // Update particles — in-place compaction
+  writeIdx = 0;
+  for (let i = 0; i < state.particles.length; i++) {
+    const p = state.particles[i];
     p.pos.x += p.vel.x;
     p.pos.y += p.vel.y;
     p.vel.x *= 0.95;
     p.vel.y *= 0.95;
     p.lifetime--;
     if (p.lifetime > 0) {
-      aliveParticles.push(p);
+      state.particles[writeIdx++] = p;
     } else {
       particlePool.release(p);
     }
   }
-  state.particles = aliveParticles;
+  state.particles.length = writeIdx;
 
-  // Remove dead enemies
-  room.enemies = room.enemies.filter(e => e.hp > 0);
+  // Remove dead enemies — in-place compaction
+  writeIdx = 0;
+  for (let i = 0; i < room.enemies.length; i++) {
+    if (room.enemies[i].hp > 0) {
+      room.enemies[writeIdx++] = room.enemies[i];
+    }
+  }
+  room.enemies.length = writeIdx;
 
   // Check room cleared
   const bossAlive = room.boss !== null && room.boss.hp > 0;
@@ -854,7 +942,6 @@ export function update(state: GameState): GameState {
         state.phase = 'reward';
       }
     } else {
-      // Spawn exit portal
       const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
       const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
       state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
@@ -868,8 +955,10 @@ export function update(state: GameState): GameState {
     }
   }
 
-  // Pickup collision
-  room.pickups = room.pickups.filter(pickup => {
+  // Pickup collision — in-place compaction
+  writeIdx = 0;
+  for (let i = 0; i < room.pickups.length; i++) {
+    const pickup = room.pickups[i];
     if (dist(player.pos, pickup.pos) < player.size + 12) {
       if (pickup.type === 'health') {
         player.hp = Math.min(player.maxHp, player.hp + pickup.value);
@@ -879,10 +968,11 @@ export function update(state: GameState): GameState {
         state.runStats.goldCollected += pickup.value;
         spawnParticles(state, pickup.pos, '#FFD700', 6);
       }
-      return false;
+    } else {
+      room.pickups[writeIdx++] = pickup;
     }
-    return true;
-  });
+  }
+  room.pickups.length = writeIdx;
 
   // Exit portal collision
   if (state.exitPortal?.active && dist(player.pos, state.exitPortal.pos) < player.size + 24) {
@@ -926,11 +1016,13 @@ export function update(state: GameState): GameState {
 
   // Door collision (backward navigation)
   if (room.cleared) {
-    for (const door of room.doors) {
+    for (let di = 0; di < room.doors.length; di++) {
+      const door = room.doors[di];
       if (door.direction === 'south' && dist(player.pos, door.pos) < player.size + 20) {
         state.currentRoom = door.leadsTo;
-        state.projectiles = [];
-        player.pos = { x: CANVAS_WIDTH / 2, y: 80 };
+        state.projectiles.length = 0;
+        player.pos.x = CANVAS_WIDTH / 2;
+        player.pos.y = 80;
         state.exitPortal = null;
         state.rewardPortal = null;
         break;
@@ -949,22 +1041,20 @@ export function update(state: GameState): GameState {
 
 // Clean up old room data to prevent memory leaks
 function cleanupRoomData(state: GameState) {
-  // Release all particles back to pool
-  for (const p of state.particles) {
-    particlePool.release(p);
+  for (let i = 0; i < state.particles.length; i++) {
+    particlePool.release(state.particles[i]);
   }
-  state.particles = [];
-  state.projectiles = [];
-  // Clear old rooms array
-  state.rooms = [];
+  state.particles.length = 0;
+  for (let i = 0; i < state.projectiles.length; i++) {
+    projectilePool.release(state.projectiles[i]);
+  }
+  state.projectiles.length = 0;
+  state.rooms.length = 0;
 }
 
 function enterRewardRoom(state: GameState) {
-  // Save return position
   state.rewardReturnRoom = state.currentRoom;
   state.rewardReturnFloor = state.floor;
-
-  // Draw high-rarity rewards (epic/legendary only)
   state.rewardChoices = drawHighRarityRewards(3);
   state.phase = 'reward_room';
 }
@@ -995,12 +1085,10 @@ function enterSecretBossRoom(state: GameState) {
 
   state.rooms.push(secretRoom);
   state.currentRoom = state.rooms.length - 1;
-  state.player.pos = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT - 80 };
-  state.projectiles = [];
+  state.player.pos.x = CANVAS_WIDTH / 2;
+  state.player.pos.y = CANVAS_HEIGHT - 100;
+  state.projectiles.length = 0;
+  state.particles.length = 0;
   state.exitPortal = null;
-  state.secretPortal = null;
   state.rewardPortal = null;
-  state.showSecretPortals = false;
-  state.roomDamageTaken = 0;
-  state.roomTimer = 0;
 }
