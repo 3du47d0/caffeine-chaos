@@ -451,7 +451,7 @@ function drawProjectile(ctx: CanvasRenderingContext2D, proj: Projectile) {
 
 function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup) {
   const { pos, type } = pickup;
-  const bob = Math.sin(Date.now() / 300) * 3;
+  const bob = Math.sin(_frameTime / 300) * 3;
 
   if (type === 'health') {
     ctx.fillStyle = '#FFF';
