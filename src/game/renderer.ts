@@ -128,7 +128,7 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState) {
   }
 
   if (player.shield) {
-    const t = Date.now() / 300;
+    const t = _frameTime / 300;
     ctx.strokeStyle = '#87CEEB';
     ctx.lineWidth = 2.5;
     ctx.globalAlpha = 0.7 + Math.sin(t) * 0.2;
