@@ -12,6 +12,10 @@ import {
 import { DifficultyId } from '../game/difficulty';
 import { CharacterId } from '../game/characters';
 
+// Fixed timestep constants
+const FIXED_DT = 1000 / 60; // 16.67ms
+const MAX_STEPS_PER_FRAME = 3; // Cap to prevent spiral of death
+
 export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const stateRef = useRef<GameState | null>(null);
   const animFrameRef = useRef<number>(0);
@@ -29,10 +33,18 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const [roomTimes, setRoomTimes] = useState<RoomTime[]>([]);
   const [unlockedAchievement, setUnlockedAchievement] = useState<Achievement | null>(null);
   const [isBossRoom, setIsBossRoom] = useState(false);
+  const [roomTimesVersion, setRoomTimesVersion] = useState(0);
 
   const savedGoldRef = useRef(0);
   const upgradesRef = useRef<Upgrades>({
     maxHpBonus: 0, damageBonus: 0, speedBonus: 0, dashCdrBonus: 0,
+  });
+
+  // Track previous values to avoid unnecessary React state updates
+  const prevValsRef = useRef({
+    hp: -1, maxHp: -1, dashCd: -1, ultCd: -1, runGold: -1,
+    floor: -1, shield: false, runTimer: -1, isBossRoom: false,
+    roomTimesLen: 0,
   });
 
   const inputManager = useMemo(() => new InputManager(), []);
@@ -122,6 +134,11 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     setMaxHp(state.player.maxHp);
     setRewardChoices([]);
     setPlayerShield(false);
+    // Reset prev vals
+    const pv = prevValsRef.current;
+    pv.hp = state.player.hp; pv.maxHp = state.player.maxHp;
+    pv.dashCd = 0; pv.ultCd = 0; pv.runGold = 0; pv.floor = 0;
+    pv.shield = false; pv.runTimer = 0; pv.isBossRoom = false; pv.roomTimesLen = 0;
     musicManager.init();
     musicManager.setMode('explore');
   }, [particleMult, musicManager]);
@@ -195,7 +212,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     setPhase('lobby');
   }, []);
 
-  // Game loop
+  // Game loop with fixed timestep
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -206,10 +223,17 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
     let lastPhase = '';
     let wasBossRoom = false;
+    let accumulator = 0;
+    let lastTime = performance.now();
 
-    const loop = () => {
+    const loop = (now: number) => {
+      const dt = Math.min(now - lastTime, 100); // cap delta to 100ms to prevent spiral
+      lastTime = now;
+
       const state = stateRef.current;
+
       if (state && (state.phase === 'playing' || ((state as any)._quickRestart))) {
+        // Sync input once per frame (not per physics step)
         const input = inputManager.getInput(state.player.pos);
         state.keys.clear();
         if (input.moveX < -0.3) state.keys.add('a');
@@ -219,7 +243,8 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         if (input.dash) state.keys.add(' ');
         if (input.ultimate) state.keys.add('q');
         if (inputManager.keys.has('r')) state.keys.add('r');
-        state.mousePos = { x: input.aimX, y: input.aimY };
+        state.mousePos.x = input.aimX;
+        state.mousePos.y = input.aimY;
         state.mouseDown = input.shoot;
 
         if ((state as any)._quickRestart) {
@@ -229,19 +254,39 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           return;
         }
 
-        update(state);
+        // Fixed timestep physics updates
+        accumulator += dt;
+        let steps = 0;
+        while (accumulator >= FIXED_DT && steps < MAX_STEPS_PER_FRAME) {
+          update(state);
+          accumulator -= FIXED_DT;
+          steps++;
+        }
+        // Discard excess accumulator to prevent spiral
+        if (steps >= MAX_STEPS_PER_FRAME) {
+          accumulator = 0;
+        }
+
+        // Render once per frame
         render(ctx, state);
 
-        setHp(state.player.hp);
-        setMaxHp(state.player.maxHp);
-        setDashCd(state.player.dashCooldown);
-        setUltCd(state.player.ultimateCooldown);
-        setRunGold(state.goldCollected);
-        setFloor(state.floor);
-        setPlayerShield(state.player.shield);
-        setRunTimer(state.runTimer);
-        setRoomTimes([...state.roomTimes]);
-        setIsBossRoom(state.isBossRoom);
+        // Only update React state when values actually change
+        const pv = prevValsRef.current;
+        if (state.player.hp !== pv.hp) { setHp(state.player.hp); pv.hp = state.player.hp; }
+        if (state.player.maxHp !== pv.maxHp) { setMaxHp(state.player.maxHp); pv.maxHp = state.player.maxHp; }
+        if (state.player.dashCooldown !== pv.dashCd) { setDashCd(state.player.dashCooldown); pv.dashCd = state.player.dashCooldown; }
+        if (state.player.ultimateCooldown !== pv.ultCd) { setUltCd(state.player.ultimateCooldown); pv.ultCd = state.player.ultimateCooldown; }
+        if (state.goldCollected !== pv.runGold) { setRunGold(state.goldCollected); pv.runGold = state.goldCollected; }
+        if (state.floor !== pv.floor) { setFloor(state.floor); pv.floor = state.floor; }
+        if (state.player.shield !== pv.shield) { setPlayerShield(state.player.shield); pv.shield = state.player.shield; }
+        // Only update timer once per second (every 60 frames)
+        if (Math.floor(state.runTimer / 60) !== Math.floor(pv.runTimer / 60)) { setRunTimer(state.runTimer); pv.runTimer = state.runTimer; }
+        if (state.isBossRoom !== pv.isBossRoom) { setIsBossRoom(state.isBossRoom); pv.isBossRoom = state.isBossRoom; }
+        // Only update roomTimes when a new entry is added
+        if (state.roomTimes.length !== pv.roomTimesLen) {
+          setRoomTimes(state.roomTimes.slice());
+          pv.roomTimesLen = state.roomTimes.length;
+        }
 
         const currentRoom = state.rooms[state.currentRoom];
         const isNowBoss = currentRoom?.isBossRoom && currentRoom.boss && currentRoom.boss.hp > 0;
