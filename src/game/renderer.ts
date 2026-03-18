@@ -746,7 +746,15 @@ function drawRestartIndicator(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.fillText('Solte R para cancelar', cx, cy + radius + 34);
 }
 
+// Cached time value for current frame — avoids multiple Date.now() calls
+let _frameTime = 0;
+
+export function getFrameTime(): number { return _frameTime; }
+
 export function render(ctx: CanvasRenderingContext2D, state: GameState) {
+  // Cache Date.now() once per frame for all draw functions
+  _frameTime = Date.now();
+
   ctx.save();
 
   if (state.screenShake > 0) {
@@ -762,18 +770,21 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
 
   const room = state.rooms[state.currentRoom];
   const isSecret = room.isSecretBossRoom;
-  const theme = getFloorTheme(state.floor);
+  const theme = state._cache?.floorTheme || getFloorTheme(state.floor);
 
   drawFloor(ctx, theme, isSecret);
   drawWalls(ctx, room, theme);
   drawDoors(ctx, room);
 
-  for (const pickup of room.pickups) drawPickup(ctx, pickup);
+  // Batch: draw all pickups
+  for (let i = 0; i < room.pickups.length; i++) drawPickup(ctx, room.pickups[i]);
   drawExitPortal(ctx, state);
 
-  for (const proj of state.projectiles) drawProjectile(ctx, proj);
+  // Batch: draw all projectiles
+  for (let i = 0; i < state.projectiles.length; i++) drawProjectile(ctx, state.projectiles[i]);
 
-  for (const enemy of room.enemies) drawEnemy(ctx, enemy);
+  // Batch: draw all enemies
+  for (let i = 0; i < room.enemies.length; i++) drawEnemy(ctx, room.enemies[i]);
   if (room.boss && room.boss.hp > 0) drawBoss(ctx, room.boss);
 
   drawParticles(ctx, state.particles);
