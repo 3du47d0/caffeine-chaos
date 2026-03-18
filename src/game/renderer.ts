@@ -29,7 +29,7 @@ function drawFloor(ctx: CanvasRenderingContext2D, theme: FloorTheme, isSecret?: 
     // Frost sparkles
     ctx.globalAlpha = 0.15;
     ctx.fillStyle = '#87CEEB';
-    const t = Date.now() / 2000;
+    const t = _frameTime / 2000;
     for (let i = 0; i < 8; i++) {
       const fx = ((i * 137 + t * 50) % CANVAS_WIDTH);
       const fy = ((i * 211 + t * 30) % CANVAS_HEIGHT);
