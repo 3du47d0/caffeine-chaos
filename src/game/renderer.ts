@@ -558,7 +558,7 @@ function drawExitPortal(ctx: CanvasRenderingContext2D, state: GameState) {
 }
 
 function drawPortal(ctx: CanvasRenderingContext2D, x: number, y: number, type: string) {
-  const t = Date.now() / 400;
+  const t = _frameTime / 400;
   const pulse = 1 + Math.sin(t) * 0.15;
 
   if (type === 'reward') {
