@@ -229,7 +229,7 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
 
 function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
   const { pos, size, type, hp, maxHp, angle } = boss;
-  const t = Date.now() / 300;
+  const t = _frameTime / 300;
 
   if (type === 'steam_king' && boss.invisibleTimer > 0) {
     ctx.globalAlpha = 0.2 + Math.sin(t * 3) * 0.1;
