@@ -478,7 +478,7 @@ function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup) {
     ctx.moveTo(pos.x, pos.y - 4 + bob);
     ctx.lineTo(pos.x, pos.y + 4 + bob);
     ctx.stroke();
-    ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 200) * 0.1;
+    ctx.globalAlpha = 0.3 + Math.sin(_frameTime / 200) * 0.1;
     drawPixelCircle(ctx, pos.x, pos.y + bob, 10, COLORS.gold);
     ctx.globalAlpha = 1;
   }
