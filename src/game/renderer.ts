@@ -460,7 +460,7 @@ function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup) {
     drawPixelRect(ctx, pos.x - 6, pos.y - 4 + bob, 12, 5, '#5C3D2E');
     ctx.strokeStyle = 'rgba(255,255,255,0.5)';
     ctx.lineWidth = 1;
-    const t = Date.now() / 200;
+    const t = _frameTime / 200;
     ctx.beginPath();
     ctx.moveTo(pos.x - 3, pos.y - 8 + bob);
     ctx.quadraticCurveTo(pos.x - 5, pos.y - 14 + bob, pos.x - 2, pos.y - 18 + bob + Math.sin(t) * 2);
