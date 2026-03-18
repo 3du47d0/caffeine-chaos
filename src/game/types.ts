@@ -219,6 +219,8 @@ export interface GameState {
   // Track return destination from reward room
   rewardReturnRoom: number;
   rewardReturnFloor: number;
+  // Cached per-run computations to avoid per-frame GC
+  _cache: any;
 }
 
 export interface Particle {
