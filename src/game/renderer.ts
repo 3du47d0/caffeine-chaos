@@ -145,7 +145,7 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
 
   // Mini-boss aura
   if (isMiniBoss) {
-    const t = Date.now() / 300;
+    const t = _frameTime / 300;
     ctx.globalAlpha = 0.25 + Math.sin(t) * 0.1;
     ctx.fillStyle = '#FF4444';
     ctx.beginPath();
