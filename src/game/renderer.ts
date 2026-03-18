@@ -417,7 +417,7 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
 
 function drawProjectile(ctx: CanvasRenderingContext2D, proj: Projectile) {
   if (proj.isBurnZone) {
-    const t = Date.now() / 200;
+    const t = _frameTime / 200;
     const alpha = (0.3 + Math.sin(t) * 0.1) * (proj.lifetime / 120);
     ctx.globalAlpha = alpha;
     const grad = ctx.createRadialGradient(proj.pos.x, proj.pos.y, 4, proj.pos.x, proj.pos.y, proj.size);
