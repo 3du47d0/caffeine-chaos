@@ -1076,7 +1076,7 @@ export function update(state: GameState): GameState {
   return state;
 }
 
-// Clean up old room data to prevent memory leaks
+// Clean up old room data to prevent memory leaks during floor transitions
 function cleanupRoomData(state: GameState) {
   for (let i = 0; i < state.particles.length; i++) {
     particlePool.release(state.particles[i]);
@@ -1086,7 +1086,26 @@ function cleanupRoomData(state: GameState) {
     projectilePool.release(state.projectiles[i]);
   }
   state.projectiles.length = 0;
+  // Free all room data
+  for (let i = 0; i < state.rooms.length; i++) {
+    const r = state.rooms[i];
+    r.enemies.length = 0;
+    r.pickups.length = 0;
+    r.walls.length = 0;
+  }
   state.rooms.length = 0;
+}
+
+// Clean up cleared rooms that aren't current to reduce memory
+function cleanupNonCurrentRooms(state: GameState, targetRoom: number) {
+  for (let i = 0; i < state.rooms.length; i++) {
+    if (i === targetRoom) continue;
+    const r = state.rooms[i];
+    if (r.cleared) {
+      r.enemies.length = 0;
+      r.pickups.length = 0;
+    }
+  }
 }
 
 function enterRewardRoom(state: GameState) {
