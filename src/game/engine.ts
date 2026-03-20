@@ -207,7 +207,7 @@ export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
   // Refresh cache since buffs changed
   state._cache = buildRunCache(state);
 
-  // If in reward_room phase, return to normal play after picking
+  // If in reward_room phase, transition back to the room we came from
   if (state.phase === 'reward_room') {
     state.phase = 'playing';
     state.rewardChoices = [];
@@ -518,14 +518,23 @@ export function update(state: GameState): GameState {
         state.floor = target.floor;
         state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR, getDifficulty(state.difficulty as DifficultyId));
         state.currentRoom = 0;
-        // Refresh cache for new floor
         state._cache = buildRunCache(state);
       } else {
+        // Clean up cleared rooms to free memory
+        cleanupNonCurrentRooms(state, target.room);
         state.currentRoom = target.room;
       }
       state.player.pos.x = CANVAS_WIDTH / 2;
       state.player.pos.y = CANVAS_HEIGHT / 2;
+      // Release projectiles back to pool
+      for (let i = 0; i < state.projectiles.length; i++) {
+        projectilePool.release(state.projectiles[i]);
+      }
       state.projectiles.length = 0;
+      // Release particles back to pool
+      for (let i = 0; i < state.particles.length; i++) {
+        particlePool.release(state.particles[i]);
+      }
       state.particles.length = 0;
       state.exitPortal = null;
       state.secretPortal = null;
@@ -619,18 +628,46 @@ export function update(state: GameState): GameState {
   player.pos.x = clamp(player.pos.x, margin + player.size, CANVAS_WIDTH - margin - player.size);
   player.pos.y = clamp(player.pos.y, margin + player.size, CANVAS_HEIGHT - margin - player.size);
 
+  // ---- Smooth wall collision with slide (circle vs AABB) ----
   for (let wi = 0; wi < room.walls.length; wi++) {
     const wall = room.walls[wi];
-    const px = player.pos.x, py = player.pos.y, ps = player.size;
-    if (rectCollision(px - ps, py - ps, ps * 2, ps * 2, wall.x, wall.y, wall.w, wall.h)) {
+    const ps = player.size;
+    // Find closest point on wall rect to player center
+    const closestX = clamp(player.pos.x, wall.x, wall.x + wall.w);
+    const closestY = clamp(player.pos.y, wall.y, wall.y + wall.h);
+    const distX = player.pos.x - closestX;
+    const distY = player.pos.y - closestY;
+    const distSq = distX * distX + distY * distY;
+
+    if (distSq < ps * ps && distSq > 0) {
+      const d = Math.sqrt(distSq);
+      const overlap = ps - d;
+      const nx = distX / d;
+      const ny = distY / d;
+      player.pos.x += nx * overlap;
+      player.pos.y += ny * overlap;
+      // Cancel velocity into wall for smooth sliding
+      const dot = player.vel.x * nx + player.vel.y * ny;
+      if (dot < 0) {
+        player.vel.x -= dot * nx;
+        player.vel.y -= dot * ny;
+      }
+    } else if (distSq === 0) {
+      // Player center inside wall — push out on shortest axis
       const cx = wall.x + wall.w / 2;
       const cy = wall.y + wall.h / 2;
-      const diffX = px - cx;
-      const diffY = py - cy;
-      if (Math.abs(diffX) > Math.abs(diffY)) {
-        player.pos.x = diffX > 0 ? wall.x + wall.w + ps : wall.x - ps;
+      const dx2 = player.pos.x - cx;
+      const dy2 = player.pos.y - cy;
+      const halfW = wall.w / 2 + ps;
+      const halfH = wall.h / 2 + ps;
+      const overlapX = halfW - Math.abs(dx2);
+      const overlapY = halfH - Math.abs(dy2);
+      if (overlapX < overlapY) {
+        player.pos.x += dx2 > 0 ? overlapX : -overlapX;
+        player.vel.x = 0;
       } else {
-        player.pos.y = diffY > 0 ? wall.y + wall.h + ps : wall.y - ps;
+        player.pos.y += dy2 > 0 ? overlapY : -overlapY;
+        player.vel.y = 0;
       }
     }
   }
@@ -1039,7 +1076,7 @@ export function update(state: GameState): GameState {
   return state;
 }
 
-// Clean up old room data to prevent memory leaks
+// Clean up old room data to prevent memory leaks during floor transitions
 function cleanupRoomData(state: GameState) {
   for (let i = 0; i < state.particles.length; i++) {
     particlePool.release(state.particles[i]);
@@ -1049,7 +1086,26 @@ function cleanupRoomData(state: GameState) {
     projectilePool.release(state.projectiles[i]);
   }
   state.projectiles.length = 0;
+  // Free all room data
+  for (let i = 0; i < state.rooms.length; i++) {
+    const r = state.rooms[i];
+    r.enemies.length = 0;
+    r.pickups.length = 0;
+    r.walls.length = 0;
+  }
   state.rooms.length = 0;
+}
+
+// Clean up cleared rooms that aren't current to reduce memory
+function cleanupNonCurrentRooms(state: GameState, targetRoom: number) {
+  for (let i = 0; i < state.rooms.length; i++) {
+    if (i === targetRoom) continue;
+    const r = state.rooms[i];
+    if (r.cleared) {
+      r.enemies.length = 0;
+      r.pickups.length = 0;
+    }
+  }
 }
 
 function enterRewardRoom(state: GameState) {
