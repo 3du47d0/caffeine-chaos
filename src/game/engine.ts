@@ -207,7 +207,7 @@ export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
   // Refresh cache since buffs changed
   state._cache = buildRunCache(state);
 
-  // If in reward_room phase, return to normal play after picking
+  // If in reward_room phase, transition back to the room we came from
   if (state.phase === 'reward_room') {
     state.phase = 'playing';
     state.rewardChoices = [];
