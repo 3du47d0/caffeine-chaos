@@ -518,14 +518,23 @@ export function update(state: GameState): GameState {
         state.floor = target.floor;
         state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR, getDifficulty(state.difficulty as DifficultyId));
         state.currentRoom = 0;
-        // Refresh cache for new floor
         state._cache = buildRunCache(state);
       } else {
+        // Clean up cleared rooms to free memory
+        cleanupNonCurrentRooms(state, target.room);
         state.currentRoom = target.room;
       }
       state.player.pos.x = CANVAS_WIDTH / 2;
       state.player.pos.y = CANVAS_HEIGHT / 2;
+      // Release projectiles back to pool
+      for (let i = 0; i < state.projectiles.length; i++) {
+        projectilePool.release(state.projectiles[i]);
+      }
       state.projectiles.length = 0;
+      // Release particles back to pool
+      for (let i = 0; i < state.particles.length; i++) {
+        particlePool.release(state.particles[i]);
+      }
       state.particles.length = 0;
       state.exitPortal = null;
       state.secretPortal = null;
