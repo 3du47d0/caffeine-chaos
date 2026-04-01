@@ -1,5 +1,6 @@
 import {
   GameState, Player, Projectile, Particle, Vec2, Enemy, Upgrades, Boss, RunBuff, RunStats,
+  Room, EnemyType, Wall,
 } from './types';
 import {
   CANVAS_WIDTH, CANVAS_HEIGHT, PLAYER_SIZE, PLAYER_SPEED, PLAYER_HP,
