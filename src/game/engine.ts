@@ -198,8 +198,9 @@ export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
 
   switch (buff.id) {
     case 'termo':
-      state.player.maxHp += 50;
-      state.player.hp = Math.min(state.player.hp + 50, state.player.maxHp);
+      // +2 heart containers (40 HP)
+      state.player.maxHp += 40;
+      state.player.hp = Math.min(state.player.hp + 40, state.player.maxHp);
       break;
     case 'leite_aveia':
       state.player.shield = true;

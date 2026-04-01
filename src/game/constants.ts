@@ -48,8 +48,11 @@ export const COLORS = {
 } as const;
 
 // In-run shop items (bought during runs with collected gold)
+// Heart system constant
+export const HEART_VALUE = 20;
+
 export const IN_RUN_SHOP_ITEMS: UpgradeShopItem[] = [
-  { id: 'maxHpBonus', name: 'Caneca Grande', description: '+25 HP máximo', cost: 8, maxLevel: 5, icon: '☕' },
+  { id: 'maxHpBonus', name: 'Caneca Grande', description: '+1 coração extra', cost: 8, maxLevel: 5, icon: '☕' },
   { id: 'damageBonus', name: 'Grãos Fortes', description: '+10% dano', cost: 12, maxLevel: 5, icon: '💥' },
   { id: 'speedBonus', name: 'Cafeína Extra', description: '+10% velocidade', cost: 10, maxLevel: 3, icon: '⚡' },
   { id: 'dashCdrBonus', name: 'Espresso Duplo', description: '-15% cooldown dash', cost: 15, maxLevel: 3, icon: '💨' },
