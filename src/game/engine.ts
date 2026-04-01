@@ -335,6 +335,55 @@ function updateBoss(state: GameState, boss: Boss) {
     case 'secret_boss': {
       const hpRatio = boss.hp / boss.maxHp;
 
+      // ---- LASER CHARGE & FIRE SYSTEM ----
+      // laserChargeTimer > 0 means charging (warning phase)
+      // laserChargeTimer === 0 && boss.burnTimer > 0 means laser is active (damage phase)
+      if (boss.laserChargeTimer === undefined) boss.laserChargeTimer = 0;
+      if (boss.laserAngle === undefined) boss.laserAngle = 0;
+      if (boss.ultimateActive === undefined) boss.ultimateActive = false;
+
+      // Handle active laser (damage phase)
+      if (boss.burnTimer && boss.burnTimer > 0) {
+        boss.burnTimer--;
+        // Boss stays still during laser
+        // Deal damage if player intersects laser beam(s)
+        const laserDamage = 40; // Multiple hearts
+        const laserWidth = 18;
+        if (boss.ultimateActive) {
+          // 8-directional laser
+          for (let i = 0; i < 8; i++) {
+            const a = (Math.PI * 2 * i) / 8;
+            if (laserHitsPlayer(boss.pos, a, player, laserWidth)) {
+              takeDamage(state, laserDamage);
+              break; // Only one hit per frame
+            }
+          }
+          if (boss.burnTimer <= 0) boss.ultimateActive = false;
+        } else {
+          // Single aimed laser
+          if (laserHitsPlayer(boss.pos, boss.laserAngle!, player, laserWidth)) {
+            takeDamage(state, laserDamage);
+          }
+        }
+        // Spawn laser particles
+        if (state.runTimer % 3 === 0) {
+          spawnParticles(state, boss.pos, '#FF0000', 2, 4);
+        }
+        break; // Boss does nothing else while firing
+      }
+
+      // Handle laser charging (warning phase)
+      if (boss.laserChargeTimer! > 0) {
+        boss.laserChargeTimer!--;
+        // Boss stays still during charge
+        if (boss.laserChargeTimer === 0) {
+          // Fire the laser!
+          boss.burnTimer = 40; // Laser active for ~0.67s
+        }
+        break; // Boss does nothing else while charging
+      }
+
+      // Phase 1 (>70% HP): chase + radial shots
       if (hpRatio > 0.7) {
         if (boss.moveTimer <= 0) {
           boss.moveTimer = 20;
@@ -355,7 +404,17 @@ function updateBoss(state: GameState, boss: Boss) {
             ));
           }
         }
-      } else if (hpRatio > 0.4) {
+        // Initiate laser attack periodically
+        if (boss.summonTimer <= 0) {
+          boss.summonTimer = 240;
+          // Aim at player
+          boss.laserAngle = Math.atan2(player.pos.y - boss.pos.y, player.pos.x - boss.pos.x);
+          boss.laserChargeTimer = 60; // 1s warning
+          boss.ultimateActive = false;
+        }
+      }
+      // Phase 2 (40-70% HP): faster chase + aimed spread + vortexes + laser
+      else if (hpRatio > 0.4) {
         if (boss.moveTimer <= 0) {
           boss.moveTimer = 15;
           _tmpVec.x = player.pos.x - boss.pos.x;
@@ -382,16 +441,25 @@ function updateBoss(state: GameState, boss: Boss) {
           }
         }
         if (boss.summonTimer <= 0) {
-          boss.summonTimer = 120;
-          for (let i = 0; i < 4; i++) {
-            state.projectiles.push(acquireProjectile(
-              100 + Math.random() * (CANVAS_WIDTH - 200),
-              100 + Math.random() * (CANVAS_HEIGHT - 200),
-              0, 0, 35, 10, false, 150, { isBurnZone: true, isVortex: true },
-            ));
+          boss.summonTimer = 150;
+          // Alternate between vortexes and laser
+          if (Math.random() < 0.5) {
+            for (let i = 0; i < 4; i++) {
+              state.projectiles.push(acquireProjectile(
+                100 + Math.random() * (CANVAS_WIDTH - 200),
+                100 + Math.random() * (CANVAS_HEIGHT - 200),
+                0, 0, 35, 10, false, 150, { isBurnZone: true, isVortex: true },
+              ));
+            }
+          } else {
+            boss.laserAngle = Math.atan2(player.pos.y - boss.pos.y, player.pos.x - boss.pos.x);
+            boss.laserChargeTimer = 50; // Faster charge in phase 2
+            boss.ultimateActive = false;
           }
         }
-      } else {
+      }
+      // Phase 3 (<40% HP): enrage + teleport + 8-dir ultimate laser
+      else {
         boss.enrageTimer = (boss.enrageTimer || 0) + 1;
         boss.teleportTimer = (boss.teleportTimer || 0) - 1;
 
@@ -422,16 +490,26 @@ function updateBoss(state: GameState, boss: Boss) {
             8, 25, false, 60,
           ));
         }
+        // 8-direction ULTIMATE LASER
         if (boss.summonTimer <= 0) {
-          boss.summonTimer = 150;
-          const room = state.rooms[state.currentRoom];
-          for (let i = 0; i < 3; i++) {
-            room.enemies.push({
-              pos: { x: 150 + Math.random() * 500, y: 150 + Math.random() * 300 },
-              vel: { x: 0, y: 0 }, size: 14, hp: 50, maxHp: 50, type: 'drone',
-              shootTimer: 40, moveTimer: 20,
-              targetPos: { x: player.pos.x, y: player.pos.y }, dropGold: 3,
-            });
+          boss.summonTimer = 200;
+          if (Math.random() < 0.6) {
+            // Ultimate: 8-direction laser
+            boss.laserAngle = 0;
+            boss.laserChargeTimer = 70; // Longer warning for ultimate
+            boss.ultimateActive = true;
+            state.screenShake = 6;
+          } else {
+            // Summon drones
+            const room = state.rooms[state.currentRoom];
+            for (let i = 0; i < 3; i++) {
+              room.enemies.push({
+                pos: { x: 150 + Math.random() * 500, y: 150 + Math.random() * 300 },
+                vel: { x: 0, y: 0 }, size: 14, hp: 50, maxHp: 50, type: 'drone',
+                shootTimer: 40, moveTimer: 20,
+                targetPos: { x: player.pos.x, y: player.pos.y }, dropGold: 3,
+              });
+            }
           }
         }
       }
