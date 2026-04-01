@@ -609,10 +609,19 @@ export function update(state: GameState): GameState {
     player.pos.y += player.facing.y * speed;
     player.dashTimer--;
   } else if (isIcy) {
-    const friction = 0.88;
-    const accel = 0.35;
+    // Ice physics: high friction retention (slides longer), low acceleration, capped max speed
+    const friction = 0.97;   // Retain 97% velocity each frame → long slides
+    const accel = 0.12;      // Slow to accelerate
+    const maxIceSpeed = speed * 0.85; // Cap below normal speed
     player.vel.x = player.vel.x * friction + moveDirX * speed * accel;
     player.vel.y = player.vel.y * friction + moveDirY * speed * accel;
+    // Clamp velocity magnitude
+    const velMag = Math.sqrt(player.vel.x * player.vel.x + player.vel.y * player.vel.y);
+    if (velMag > maxIceSpeed) {
+      const scale = maxIceSpeed / velMag;
+      player.vel.x *= scale;
+      player.vel.y *= scale;
+    }
     player.pos.x += player.vel.x;
     player.pos.y += player.vel.y;
   } else {
