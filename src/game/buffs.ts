@@ -25,7 +25,7 @@ export const RUN_BUFF_POOL: RunBuffWithRarity[] = [
   { id: 'torrado', name: 'Grão Torrado', description: '+15% dano em todos os ataques', icon: '🔥', rarity: 'common' },
   { id: 'leite_aveia', name: 'Leite de Aveia', description: 'Escudo que absorve 1 acerto por sala', icon: '🛡️', rarity: 'common' },
   { id: 'chantilly', name: 'Chantilly Extra', description: '+15% velocidade de ataque', icon: '🍦', rarity: 'common' },
-  { id: 'termo', name: 'Termo Térmico', description: '+30 vida máxima', icon: '☕', rarity: 'common' },
+  { id: 'termo', name: 'Termo Térmico', description: '+2 corações máximos', icon: '☕', rarity: 'common' },
   { id: 'canela', name: 'Canela em Pó', description: '20% chance de queimar inimigos', icon: '✨', rarity: 'common' },
   { id: 'descaf', name: 'Descafeinado Gelado', description: '+15% velocidade e alcance do dash', icon: '💨', rarity: 'common' },
   // Rare
