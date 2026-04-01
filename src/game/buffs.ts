@@ -42,7 +42,7 @@ export const RUN_BUFF_POOL: RunBuffWithRarity[] = [
   { id: 'chantilly', name: 'Turbina de Café', description: '+50% velocidade de ataque', icon: '⚙️', rarity: 'epic' },
   // Legendary
   { id: 'torrado', name: 'Essência do Expresso', description: '+60% dano + projéteis maiores', icon: '💎', rarity: 'legendary' },
-  { id: 'termo', name: 'Elixir Imortal', description: '+150 HP + regenera 1 HP/s', icon: '✝️', rarity: 'legendary' },
+  { id: 'termo', name: 'Elixir Imortal', description: '+7 corações + regenera 1 HP/s', icon: '✝️', rarity: 'legendary' },
 ];
 
 const RARITY_WEIGHTS: Record<BuffRarity, number> = {
