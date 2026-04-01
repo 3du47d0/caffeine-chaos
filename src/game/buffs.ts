@@ -37,7 +37,7 @@ export const RUN_BUFF_POOL: RunBuffWithRarity[] = [
   { id: 'leite_aveia', name: 'Leite Blindado', description: 'Escudo + cura 10 HP ao absorver', icon: '🥛', rarity: 'rare' },
   // Epic
   { id: 'torrado', name: 'Grão Vulcânico', description: '+40% dano', icon: '🌋', rarity: 'epic' },
-  { id: 'termo', name: 'Caldeirão Mágico', description: '+100 vida máxima', icon: '🍵', rarity: 'epic' },
+  { id: 'termo', name: 'Caldeirão Mágico', description: '+5 corações máximos', icon: '🍵', rarity: 'epic' },
   { id: 'descaf', name: 'Jet Fuel', description: '+50% velocidade total', icon: '🚀', rarity: 'epic' },
   { id: 'chantilly', name: 'Turbina de Café', description: '+50% velocidade de ataque', icon: '⚙️', rarity: 'epic' },
   // Legendary
