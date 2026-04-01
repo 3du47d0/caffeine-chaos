@@ -392,6 +392,71 @@ function drawBoss(ctx: CanvasRenderingContext2D, boss: Boss) {
   ctx.restore();
   ctx.globalAlpha = 1;
 
+  // ---- Laser beam rendering for secret boss ----
+  if (type === 'secret_boss') {
+    const laserCharge = boss.laserChargeTimer || 0;
+    const laserActive = (boss.burnTimer || 0) > 0;
+    const isUltimate = boss.ultimateActive || false;
+
+    if (laserCharge > 0 || laserActive) {
+      const directions = isUltimate ? 8 : 1;
+      for (let d = 0; d < directions; d++) {
+        const baseAngle = isUltimate ? (Math.PI * 2 * d) / 8 : (boss.laserAngle || 0);
+
+        if (laserCharge > 0) {
+          // WARNING PHASE: thin flickering line
+          ctx.save();
+          ctx.globalAlpha = 0.3 + Math.sin(_frameTime / 50) * 0.2;
+          ctx.strokeStyle = '#FF0000';
+          ctx.lineWidth = 3 + Math.sin(_frameTime / 80) * 2;
+          ctx.setLineDash([8, 8]);
+          ctx.beginPath();
+          ctx.moveTo(pos.x, pos.y);
+          ctx.lineTo(pos.x + Math.cos(baseAngle) * 900, pos.y + Math.sin(baseAngle) * 900);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+
+          // "!" warning icon
+          if (laserCharge < 40) {
+            ctx.fillStyle = '#FF0000';
+            ctx.font = 'bold 16px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('⚠', pos.x + Math.cos(baseAngle) * 60, pos.y + Math.sin(baseAngle) * 60);
+          }
+        } else if (laserActive) {
+          // ACTIVE PHASE: thick damaging beam with glow
+          ctx.save();
+          // Outer glow
+          ctx.globalAlpha = 0.4;
+          ctx.strokeStyle = '#FF4400';
+          ctx.lineWidth = 28;
+          ctx.beginPath();
+          ctx.moveTo(pos.x, pos.y);
+          ctx.lineTo(pos.x + Math.cos(baseAngle) * 900, pos.y + Math.sin(baseAngle) * 900);
+          ctx.stroke();
+          // Core beam
+          ctx.globalAlpha = 0.9;
+          ctx.strokeStyle = '#FF0000';
+          ctx.lineWidth = 14;
+          ctx.beginPath();
+          ctx.moveTo(pos.x, pos.y);
+          ctx.lineTo(pos.x + Math.cos(baseAngle) * 900, pos.y + Math.sin(baseAngle) * 900);
+          ctx.stroke();
+          // Bright center
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = '#FFAA00';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(pos.x, pos.y);
+          ctx.lineTo(pos.x + Math.cos(baseAngle) * 900, pos.y + Math.sin(baseAngle) * 900);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+  }
+
   // Boss HP bar
   const barW = size * 3;
   const barH = 8;
