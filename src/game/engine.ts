@@ -207,12 +207,14 @@ export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
   // Refresh cache since buffs changed
   state._cache = buildRunCache(state);
 
-  // If in reward_room phase, transition back to the room we came from
+  // If in reward_room phase, return to playing — no transition needed since player never left
   if (state.phase === 'reward_room') {
     state.phase = 'playing';
     state.rewardChoices = [];
-    state.transitionTimer = 60;
-    state.transitionTarget = { floor: state.rewardReturnFloor, room: state.rewardReturnRoom };
+    // Regenerate exit portal since the old one may have been consumed
+    const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
+    const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
+    state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
     return state;
   }
 
