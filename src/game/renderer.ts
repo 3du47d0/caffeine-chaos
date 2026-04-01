@@ -47,6 +47,27 @@ function drawFloor(ctx: CanvasRenderingContext2D, theme: FloorTheme, isSecret?: 
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     ctx.globalAlpha = 1;
+  } else if (theme.id === 'secret_abyss') {
+    // Pulsing purple void effect
+    ctx.globalAlpha = 0.12;
+    const grad = ctx.createRadialGradient(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 50, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 400);
+    grad.addColorStop(0, '#8B00FF');
+    grad.addColorStop(0.5, '#FF00FF');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    // Floating void particles
+    ctx.fillStyle = '#FF00FF';
+    const t2 = _frameTime / 1500;
+    for (let i = 0; i < 6; i++) {
+      const fx = ((i * 173 + t2 * 40) % CANVAS_WIDTH);
+      const fy = ((i * 239 + t2 * 25) % CANVAS_HEIGHT);
+      ctx.globalAlpha = 0.1 + Math.sin(t2 * 3 + i) * 0.05;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 }
 
