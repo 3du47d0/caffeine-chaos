@@ -49,8 +49,6 @@ export const FLOOR_THEMES: FloorTheme[] = [
     label: '🔥 Fornalha de Torra',
     fireHazards: true,
   },
-];
-
   {
     id: 'secret_abyss',
     name: 'Abismo do Expresso',
