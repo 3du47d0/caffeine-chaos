@@ -30,7 +30,7 @@ export const RUN_BUFF_POOL: RunBuffWithRarity[] = [
   { id: 'descaf', name: 'Descafeinado Gelado', description: '+15% velocidade e alcance do dash', icon: '💨', rarity: 'common' },
   // Rare
   { id: 'torrado', name: 'Grão Premium', description: '+25% dano em todos os ataques', icon: '🔥', rarity: 'rare' },
-  { id: 'termo', name: 'Garrafa Térmica Pro', description: '+60 vida máxima', icon: '🏺', rarity: 'rare' },
+  { id: 'termo', name: 'Garrafa Térmica Pro', description: '+3 corações máximos', icon: '🏺', rarity: 'rare' },
   { id: 'chantilly', name: 'Espuma Cremosa', description: '+30% velocidade de ataque', icon: '🧁', rarity: 'rare' },
   { id: 'descaf', name: 'Nitro Cold Brew', description: '+30% velocidade e dash', icon: '🧊', rarity: 'rare' },
   { id: 'canela', name: 'Pimenta Caiena', description: '35% chance de queimar + dano extra', icon: '🌶️', rarity: 'rare' },
