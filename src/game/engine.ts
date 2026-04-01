@@ -175,8 +175,9 @@ export function buyInRunUpgrade(state: GameState, id: keyof Upgrades, cost: numb
     state.goldCollected -= cost;
     state.upgrades[id]++;
     if (id === 'maxHpBonus') {
-      state.player.maxHp += 25;
-      state.player.hp = Math.min(state.player.hp + 25, state.player.maxHp);
+      // +1 heart container (20 HP)
+      state.player.maxHp += 20;
+      state.player.hp = Math.min(state.player.hp + 20, state.player.maxHp);
     }
     // Refresh cache since upgrades changed
     state._cache = buildRunCache(state);
