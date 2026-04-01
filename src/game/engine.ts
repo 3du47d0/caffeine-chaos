@@ -103,7 +103,8 @@ export function createInitialState(
   const achieveProgress = loadAchievementProgress();
   const bonuses = getAchievementBonuses(achieveProgress);
 
-  const baseHp = Math.floor((PLAYER_HP + upgrades.maxHpBonus * 25 + bonuses.hpBonus) * char.hpMult);
+  const HEART_VALUE = 20;
+  const baseHp = Math.floor((PLAYER_HP + upgrades.maxHpBonus * HEART_VALUE + bonuses.hpBonus) * char.hpMult);
 
   const player: Player = {
     pos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 },
