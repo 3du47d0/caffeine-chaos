@@ -1,5 +1,6 @@
 import {
   GameState, Player, Projectile, Particle, Vec2, Enemy, Upgrades, Boss, RunBuff, RunStats,
+  Room, EnemyType, Wall,
 } from './types';
 import {
   CANVAS_WIDTH, CANVAS_HEIGHT, PLAYER_SIZE, PLAYER_SPEED, PLAYER_HP,
@@ -335,6 +336,55 @@ function updateBoss(state: GameState, boss: Boss) {
     case 'secret_boss': {
       const hpRatio = boss.hp / boss.maxHp;
 
+      // ---- LASER CHARGE & FIRE SYSTEM ----
+      // laserChargeTimer > 0 means charging (warning phase)
+      // laserChargeTimer === 0 && boss.burnTimer > 0 means laser is active (damage phase)
+      if (boss.laserChargeTimer === undefined) boss.laserChargeTimer = 0;
+      if (boss.laserAngle === undefined) boss.laserAngle = 0;
+      if (boss.ultimateActive === undefined) boss.ultimateActive = false;
+
+      // Handle active laser (damage phase)
+      if (boss.burnTimer && boss.burnTimer > 0) {
+        boss.burnTimer--;
+        // Boss stays still during laser
+        // Deal damage if player intersects laser beam(s)
+        const laserDamage = 40; // Multiple hearts
+        const laserWidth = 18;
+        if (boss.ultimateActive) {
+          // 8-directional laser
+          for (let i = 0; i < 8; i++) {
+            const a = (Math.PI * 2 * i) / 8;
+            if (laserHitsPlayer(boss.pos, a, player, laserWidth)) {
+              takeDamage(state, laserDamage);
+              break; // Only one hit per frame
+            }
+          }
+          if (boss.burnTimer <= 0) boss.ultimateActive = false;
+        } else {
+          // Single aimed laser
+          if (laserHitsPlayer(boss.pos, boss.laserAngle!, player, laserWidth)) {
+            takeDamage(state, laserDamage);
+          }
+        }
+        // Spawn laser particles
+        if (state.runTimer % 3 === 0) {
+          spawnParticles(state, boss.pos, '#FF0000', 2, 4);
+        }
+        break; // Boss does nothing else while firing
+      }
+
+      // Handle laser charging (warning phase)
+      if (boss.laserChargeTimer! > 0) {
+        boss.laserChargeTimer!--;
+        // Boss stays still during charge
+        if (boss.laserChargeTimer === 0) {
+          // Fire the laser!
+          boss.burnTimer = 40; // Laser active for ~0.67s
+        }
+        break; // Boss does nothing else while charging
+      }
+
+      // Phase 1 (>70% HP): chase + radial shots
       if (hpRatio > 0.7) {
         if (boss.moveTimer <= 0) {
           boss.moveTimer = 20;
@@ -355,7 +405,17 @@ function updateBoss(state: GameState, boss: Boss) {
             ));
           }
         }
-      } else if (hpRatio > 0.4) {
+        // Initiate laser attack periodically
+        if (boss.summonTimer <= 0) {
+          boss.summonTimer = 240;
+          // Aim at player
+          boss.laserAngle = Math.atan2(player.pos.y - boss.pos.y, player.pos.x - boss.pos.x);
+          boss.laserChargeTimer = 60; // 1s warning
+          boss.ultimateActive = false;
+        }
+      }
+      // Phase 2 (40-70% HP): faster chase + aimed spread + vortexes + laser
+      else if (hpRatio > 0.4) {
         if (boss.moveTimer <= 0) {
           boss.moveTimer = 15;
           _tmpVec.x = player.pos.x - boss.pos.x;
@@ -382,16 +442,25 @@ function updateBoss(state: GameState, boss: Boss) {
           }
         }
         if (boss.summonTimer <= 0) {
-          boss.summonTimer = 120;
-          for (let i = 0; i < 4; i++) {
-            state.projectiles.push(acquireProjectile(
-              100 + Math.random() * (CANVAS_WIDTH - 200),
-              100 + Math.random() * (CANVAS_HEIGHT - 200),
-              0, 0, 35, 10, false, 150, { isBurnZone: true, isVortex: true },
-            ));
+          boss.summonTimer = 150;
+          // Alternate between vortexes and laser
+          if (Math.random() < 0.5) {
+            for (let i = 0; i < 4; i++) {
+              state.projectiles.push(acquireProjectile(
+                100 + Math.random() * (CANVAS_WIDTH - 200),
+                100 + Math.random() * (CANVAS_HEIGHT - 200),
+                0, 0, 35, 10, false, 150, { isBurnZone: true, isVortex: true },
+              ));
+            }
+          } else {
+            boss.laserAngle = Math.atan2(player.pos.y - boss.pos.y, player.pos.x - boss.pos.x);
+            boss.laserChargeTimer = 50; // Faster charge in phase 2
+            boss.ultimateActive = false;
           }
         }
-      } else {
+      }
+      // Phase 3 (<40% HP): enrage + teleport + 8-dir ultimate laser
+      else {
         boss.enrageTimer = (boss.enrageTimer || 0) + 1;
         boss.teleportTimer = (boss.teleportTimer || 0) - 1;
 
@@ -422,16 +491,26 @@ function updateBoss(state: GameState, boss: Boss) {
             8, 25, false, 60,
           ));
         }
+        // 8-direction ULTIMATE LASER
         if (boss.summonTimer <= 0) {
-          boss.summonTimer = 150;
-          const room = state.rooms[state.currentRoom];
-          for (let i = 0; i < 3; i++) {
-            room.enemies.push({
-              pos: { x: 150 + Math.random() * 500, y: 150 + Math.random() * 300 },
-              vel: { x: 0, y: 0 }, size: 14, hp: 50, maxHp: 50, type: 'drone',
-              shootTimer: 40, moveTimer: 20,
-              targetPos: { x: player.pos.x, y: player.pos.y }, dropGold: 3,
-            });
+          boss.summonTimer = 200;
+          if (Math.random() < 0.6) {
+            // Ultimate: 8-direction laser
+            boss.laserAngle = 0;
+            boss.laserChargeTimer = 70; // Longer warning for ultimate
+            boss.ultimateActive = true;
+            state.screenShake = 6;
+          } else {
+            // Summon drones
+            const room = state.rooms[state.currentRoom];
+            for (let i = 0; i < 3; i++) {
+              room.enemies.push({
+                pos: { x: 150 + Math.random() * 500, y: 150 + Math.random() * 300 },
+                vel: { x: 0, y: 0 }, size: 14, hp: 50, maxHp: 50, type: 'drone',
+                shootTimer: 40, moveTimer: 20,
+                targetPos: { x: player.pos.x, y: player.pos.y }, dropGold: 3,
+              });
+            }
           }
         }
       }
@@ -609,10 +688,19 @@ export function update(state: GameState): GameState {
     player.pos.y += player.facing.y * speed;
     player.dashTimer--;
   } else if (isIcy) {
-    const friction = 0.88;
-    const accel = 0.35;
+    // Ice physics: high friction retention (slides longer), low acceleration, capped max speed
+    const friction = 0.97;   // Retain 97% velocity each frame → long slides
+    const accel = 0.12;      // Slow to accelerate
+    const maxIceSpeed = speed * 0.85; // Cap below normal speed
     player.vel.x = player.vel.x * friction + moveDirX * speed * accel;
     player.vel.y = player.vel.y * friction + moveDirY * speed * accel;
+    // Clamp velocity magnitude
+    const velMag = Math.sqrt(player.vel.x * player.vel.x + player.vel.y * player.vel.y);
+    if (velMag > maxIceSpeed) {
+      const scale = maxIceSpeed / velMag;
+      player.vel.x *= scale;
+      player.vel.y *= scale;
+    }
     player.pos.x += player.vel.x;
     player.pos.y += player.vel.y;
   } else {
@@ -1120,36 +1208,119 @@ function enterRewardRoom(state: GameState) {
   state.phase = 'reward_room';
 }
 
+// Helper: check if a laser beam from origin at angle hits the player (circle)
+function laserHitsPlayer(origin: Vec2, angle: number, player: Player, width: number): boolean {
+  const dx = player.pos.x - origin.x;
+  const dy = player.pos.y - origin.y;
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  // Project player center onto laser axis
+  const along = dx * cos + dy * sin;
+  if (along < 0) return false; // Behind the boss
+  const perp = Math.abs(-dx * sin + dy * cos);
+  return perp < width / 2 + player.size;
+}
+
 function enterSecretBossRoom(state: GameState) {
-  const secretBossHp = Math.floor(800 * 1.7);
-  const secretRoom = {
+  // Generate a full secret floor with 4 harder rooms + boss room
+  cleanupRoomData(state);
+
+  const diff = state._cache?.diffData || getDifficulty(state.difficulty as DifficultyId);
+  const secretDiff = {
+    ...diff,
+    enemyHpMult: diff.enemyHpMult * 2.0,
+    enemyCountMult: diff.enemyCountMult * 1.5,
+    enemySpeedMult: diff.enemySpeedMult * 1.3,
+    enemyDamageMult: diff.enemyDamageMult * 1.5,
+  };
+
+  // Generate 4 combat rooms
+  const secretRooms: Room[] = [];
+  const enemyPool: EnemyType[] = ['angry_cup', 'drone', 'croissant', 'milk_blob'];
+  const margin = 70;
+
+  for (let i = 0; i < 4; i++) {
+    const enemies: Enemy[] = [];
+    const enemyCount = 6 + i * 2; // Increasing enemy count
+    for (let e = 0; e < enemyCount; e++) {
+      const type = enemyPool[Math.floor(Math.random() * enemyPool.length)];
+      const config = ENEMY_CONFIGS[type];
+      const hp = Math.floor(config.hp * secretDiff.enemyHpMult * 1.5);
+      enemies.push({
+        pos: { x: margin + 50 + Math.random() * (CANVAS_WIDTH - margin * 2 - 100), y: margin + 50 + Math.random() * (CANVAS_HEIGHT - margin * 2 - 100) },
+        vel: { x: 0, y: 0 }, size: config.size, hp, maxHp: hp, type,
+        shootTimer: 20 + Math.random() * 40, moveTimer: 15 + Math.random() * 30,
+        targetPos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 },
+        dropGold: Math.ceil(config.gold * 2),
+      });
+    }
+
+    // Add hazard zones (fire + vortex)
+    const hazardWalls: Wall[] = [];
+    for (let w = 0; w < 3 + i; w++) {
+      hazardWalls.push({
+        x: 100 + Math.random() * (CANVAS_WIDTH - 260),
+        y: 100 + Math.random() * (CANVAS_HEIGHT - 260),
+        w: 30 + Math.random() * 30,
+        h: 30 + Math.random() * 30,
+      });
+    }
+
+    const doors: { pos: Vec2; direction: 'north' | 'south' | 'east' | 'west'; leadsTo: number }[] = [];
+    if (i < 4) doors.push({ pos: { x: CANVAS_WIDTH / 2, y: 15 }, direction: 'north', leadsTo: i + 1 });
+    if (i > 0) doors.push({ pos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT - 15 }, direction: 'south', leadsTo: i - 1 });
+
+    secretRooms.push({
+      x: 0, y: 0, width: CANVAS_WIDTH, height: CANVAS_HEIGHT,
+      enemies,
+      boss: null,
+      pickups: [
+        { pos: { x: 100 + Math.random() * 600, y: 100 + Math.random() * 400 }, type: 'health', value: 40 },
+      ],
+      cleared: false,
+      doors,
+      walls: hazardWalls,
+      isBossRoom: false,
+      isSecretBossRoom: true,
+    });
+  }
+
+  // Boss room (room 4)
+  const secretBossHp = Math.floor(2000 * (diff.bossHpMult ?? 1)); // Massively buffed HP
+  secretRooms.push({
     x: 0, y: 0, width: CANVAS_WIDTH, height: CANVAS_HEIGHT,
     enemies: [],
     boss: {
       pos: { x: CANVAS_WIDTH / 2, y: 160 },
-      vel: { x: 0, y: 0 }, size: 42, hp: secretBossHp, maxHp: secretBossHp,
+      vel: { x: 0, y: 0 }, size: 46, hp: secretBossHp, maxHp: secretBossHp,
       type: 'secret_boss' as const,
       shootTimer: 30, moveTimer: 15, phase: 0, angle: 0,
-      invisibleTimer: 0, summonTimer: 100, dropGold: 100,
+      invisibleTimer: 0, summonTimer: 120, dropGold: 150,
       enrageTimer: 0, teleportTimer: 60, shieldActive: false, shieldHp: 0,
+      laserChargeTimer: 0, laserAngle: 0, ultimateActive: false,
     },
     pickups: [
       { pos: { x: 150, y: 450 }, type: 'health' as const, value: 50 },
       { pos: { x: 650, y: 450 }, type: 'health' as const, value: 50 },
+      { pos: { x: 400, y: 500 }, type: 'health' as const, value: 50 },
     ],
     cleared: false,
-    doors: [],
+    doors: [{ pos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT - 15 }, direction: 'south', leadsTo: 3 }],
     walls: [],
     isBossRoom: true,
     isSecretBossRoom: true,
-  };
+  });
 
-  state.rooms.push(secretRoom);
-  state.currentRoom = state.rooms.length - 1;
+  state.rooms = secretRooms;
+  state.currentRoom = 0;
+  state.floor = TOTAL_FLOORS; // Secret floor index
   state.player.pos.x = CANVAS_WIDTH / 2;
   state.player.pos.y = CANVAS_HEIGHT - 100;
+  for (let i = 0; i < state.projectiles.length; i++) projectilePool.release(state.projectiles[i]);
   state.projectiles.length = 0;
+  for (let i = 0; i < state.particles.length; i++) particlePool.release(state.particles[i]);
   state.particles.length = 0;
   state.exitPortal = null;
   state.rewardPortal = null;
+  state.secretPortal = null;
+  state._cache = buildRunCache(state);
 }

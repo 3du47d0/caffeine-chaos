@@ -49,6 +49,17 @@ export const FLOOR_THEMES: FloorTheme[] = [
     label: '🔥 Fornalha de Torra',
     fireHazards: true,
   },
+  {
+    id: 'secret_abyss',
+    name: 'Abismo do Expresso',
+    floorColor: '#0D0015',
+    floorTileColor: '#1A0028',
+    wallColor: '#150020',
+    wallHighlight: '#6B0090',
+    ambientParticleColor: '#FF00FF',
+    label: '👑 Abismo do Expresso',
+    fireHazards: true,
+  },
 ];
 
 export function getFloorTheme(floor: number): FloorTheme {
