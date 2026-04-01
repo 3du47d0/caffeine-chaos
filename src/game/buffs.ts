@@ -25,24 +25,24 @@ export const RUN_BUFF_POOL: RunBuffWithRarity[] = [
   { id: 'torrado', name: 'Grão Torrado', description: '+15% dano em todos os ataques', icon: '🔥', rarity: 'common' },
   { id: 'leite_aveia', name: 'Leite de Aveia', description: 'Escudo que absorve 1 acerto por sala', icon: '🛡️', rarity: 'common' },
   { id: 'chantilly', name: 'Chantilly Extra', description: '+15% velocidade de ataque', icon: '🍦', rarity: 'common' },
-  { id: 'termo', name: 'Termo Térmico', description: '+30 vida máxima', icon: '☕', rarity: 'common' },
+  { id: 'termo', name: 'Termo Térmico', description: '+2 corações máximos', icon: '☕', rarity: 'common' },
   { id: 'canela', name: 'Canela em Pó', description: '20% chance de queimar inimigos', icon: '✨', rarity: 'common' },
   { id: 'descaf', name: 'Descafeinado Gelado', description: '+15% velocidade e alcance do dash', icon: '💨', rarity: 'common' },
   // Rare
   { id: 'torrado', name: 'Grão Premium', description: '+25% dano em todos os ataques', icon: '🔥', rarity: 'rare' },
-  { id: 'termo', name: 'Garrafa Térmica Pro', description: '+60 vida máxima', icon: '🏺', rarity: 'rare' },
+  { id: 'termo', name: 'Garrafa Térmica Pro', description: '+3 corações máximos', icon: '🏺', rarity: 'rare' },
   { id: 'chantilly', name: 'Espuma Cremosa', description: '+30% velocidade de ataque', icon: '🧁', rarity: 'rare' },
   { id: 'descaf', name: 'Nitro Cold Brew', description: '+30% velocidade e dash', icon: '🧊', rarity: 'rare' },
   { id: 'canela', name: 'Pimenta Caiena', description: '35% chance de queimar + dano extra', icon: '🌶️', rarity: 'rare' },
   { id: 'leite_aveia', name: 'Leite Blindado', description: 'Escudo + cura 10 HP ao absorver', icon: '🥛', rarity: 'rare' },
   // Epic
   { id: 'torrado', name: 'Grão Vulcânico', description: '+40% dano', icon: '🌋', rarity: 'epic' },
-  { id: 'termo', name: 'Caldeirão Mágico', description: '+100 vida máxima', icon: '🍵', rarity: 'epic' },
+  { id: 'termo', name: 'Caldeirão Mágico', description: '+5 corações máximos', icon: '🍵', rarity: 'epic' },
   { id: 'descaf', name: 'Jet Fuel', description: '+50% velocidade total', icon: '🚀', rarity: 'epic' },
   { id: 'chantilly', name: 'Turbina de Café', description: '+50% velocidade de ataque', icon: '⚙️', rarity: 'epic' },
   // Legendary
   { id: 'torrado', name: 'Essência do Expresso', description: '+60% dano + projéteis maiores', icon: '💎', rarity: 'legendary' },
-  { id: 'termo', name: 'Elixir Imortal', description: '+150 HP + regenera 1 HP/s', icon: '✝️', rarity: 'legendary' },
+  { id: 'termo', name: 'Elixir Imortal', description: '+7 corações + regenera 1 HP/s', icon: '✝️', rarity: 'legendary' },
 ];
 
 const RARITY_WEIGHTS: Record<BuffRarity, number> = {

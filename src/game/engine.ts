@@ -103,7 +103,8 @@ export function createInitialState(
   const achieveProgress = loadAchievementProgress();
   const bonuses = getAchievementBonuses(achieveProgress);
 
-  const baseHp = Math.floor((PLAYER_HP + upgrades.maxHpBonus * 25 + bonuses.hpBonus) * char.hpMult);
+  const HEART_VALUE = 20;
+  const baseHp = Math.floor((PLAYER_HP + upgrades.maxHpBonus * HEART_VALUE + bonuses.hpBonus) * char.hpMult);
 
   const player: Player = {
     pos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 },
@@ -174,8 +175,9 @@ export function buyInRunUpgrade(state: GameState, id: keyof Upgrades, cost: numb
     state.goldCollected -= cost;
     state.upgrades[id]++;
     if (id === 'maxHpBonus') {
-      state.player.maxHp += 25;
-      state.player.hp = Math.min(state.player.hp + 25, state.player.maxHp);
+      // +1 heart container (20 HP)
+      state.player.maxHp += 20;
+      state.player.hp = Math.min(state.player.hp + 20, state.player.maxHp);
     }
     // Refresh cache since upgrades changed
     state._cache = buildRunCache(state);
@@ -196,8 +198,9 @@ export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
 
   switch (buff.id) {
     case 'termo':
-      state.player.maxHp += 50;
-      state.player.hp = Math.min(state.player.hp + 50, state.player.maxHp);
+      // +2 heart containers (40 HP)
+      state.player.maxHp += 40;
+      state.player.hp = Math.min(state.player.hp + 40, state.player.maxHp);
       break;
     case 'leite_aveia':
       state.player.shield = true;
@@ -207,12 +210,14 @@ export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
   // Refresh cache since buffs changed
   state._cache = buildRunCache(state);
 
-  // If in reward_room phase, transition back to the room we came from
+  // If in reward_room phase, return to playing — no transition needed since player never left
   if (state.phase === 'reward_room') {
     state.phase = 'playing';
     state.rewardChoices = [];
-    state.transitionTimer = 60;
-    state.transitionTarget = { floor: state.rewardReturnFloor, room: state.rewardReturnRoom };
+    // Regenerate exit portal since the old one may have been consumed
+    const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
+    const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
+    state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
     return state;
   }
 

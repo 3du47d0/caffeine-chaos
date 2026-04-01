@@ -11,46 +11,52 @@ interface HUDProps {
   shield: boolean;
 }
 
+const HEART_VALUE = 20; // Each heart = 20 HP
+
 const HUD: React.FC<HUDProps> = ({ hp, maxHp, gold, dashCd, ultCd, floor, shield }) => {
-  const hpPercent = Math.max(0, hp / maxHp);
   const dashReady = dashCd <= 0;
   const ultReady = ultCd <= 0;
   const dashPercent = dashReady ? 1 : 1 - dashCd / PLAYER_DASH_COOLDOWN;
   const ultPercent = ultReady ? 1 : 1 - ultCd / PLAYER_ULTIMATE_COOLDOWN;
 
+  // Heart rendering
+  const totalHearts = Math.ceil(maxHp / HEART_VALUE);
+  const fullHearts = Math.floor(Math.max(0, hp) / HEART_VALUE);
+  const remainder = Math.max(0, hp) % HEART_VALUE;
+  const hasHalf = remainder >= HEART_VALUE / 2;
+
+  const hearts: ('full' | 'half' | 'empty')[] = [];
+  for (let i = 0; i < totalHearts; i++) {
+    if (i < fullHearts) hearts.push('full');
+    else if (i === fullHearts && hasHalf) hearts.push('half');
+    else hearts.push('empty');
+  }
+
   return (
     <div className="absolute bottom-0 left-0 right-0 pointer-events-none p-2 sm:p-4 flex items-end justify-between">
-      {/* Health - Coffee Mug */}
-      <div className="flex items-end gap-2 sm:gap-3">
-        <div className="relative w-10 h-14 sm:w-16 sm:h-20">
-          <div className="absolute inset-0 rounded-b-lg pixel-border bg-coffee-dark overflow-hidden">
-            <div
-              className="absolute bottom-0 left-0 right-0 transition-all duration-200"
+      {/* Health - Hearts */}
+      <div className="flex items-end gap-1">
+        <div className="flex flex-wrap gap-0.5 max-w-[140px] sm:max-w-[200px]">
+          {hearts.map((type, i) => (
+            <span
+              key={i}
+              className={`text-sm sm:text-lg leading-none transition-transform duration-100 ${
+                type === 'full' && hp <= maxHp * 0.25 ? 'animate-pulse' : ''
+              }`}
               style={{
-                height: `${hpPercent * 100}%`,
-                background: hpPercent > 0.5
-                  ? 'linear-gradient(180deg, #8B4513 0%, #5C3D2E 100%)'
-                  : hpPercent > 0.25
-                  ? 'linear-gradient(180deg, #B8860B 0%, #8B4513 100%)'
-                  : 'linear-gradient(180deg, #C0392B 0%, #8B0000 100%)',
+                filter: type === 'empty' ? 'grayscale(1) brightness(0.4)' : undefined,
+                opacity: type === 'half' ? 0.7 : 1,
               }}
-            />
-            {hpPercent > 0.5 && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-foreground/40 text-xs animate-pulse">
-                ～～
-              </div>
-            )}
-          </div>
-          <div className="absolute right-[-8px] sm:right-[-10px] top-3 sm:top-4 w-2 h-6 sm:w-3 sm:h-8 border-2 border-primary rounded-r-full" />
-          {shield && (
-            <div className="absolute -top-4 sm:-top-5 left-1/2 -translate-x-1/2 text-xs sm:text-sm animate-pulse" title="Escudo ativo">
-              🛡️
-            </div>
-          )}
+            >
+              {type === 'full' ? '❤️' : type === 'half' ? '💔' : '🖤'}
+            </span>
+          ))}
         </div>
-        <div className="font-pixel text-foreground" style={{ fontSize: '8px' }}>
-          {Math.max(0, Math.ceil(hp))}/{maxHp}
-        </div>
+        {shield && (
+          <span className="text-xs sm:text-sm animate-pulse ml-1" title="Escudo ativo">
+            🛡️
+          </span>
+        )}
       </div>
 
       {/* Gold counter */}
