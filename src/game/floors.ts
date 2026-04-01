@@ -51,6 +51,19 @@ export const FLOOR_THEMES: FloorTheme[] = [
   },
 ];
 
+  {
+    id: 'secret_abyss',
+    name: 'Abismo do Expresso',
+    floorColor: '#0D0015',
+    floorTileColor: '#1A0028',
+    wallColor: '#150020',
+    wallHighlight: '#6B0090',
+    ambientParticleColor: '#FF00FF',
+    label: '👑 Abismo do Expresso',
+    fireHazards: true,
+  },
+];
+
 export function getFloorTheme(floor: number): FloorTheme {
   return FLOOR_THEMES[Math.min(floor, FLOOR_THEMES.length - 1)];
 }

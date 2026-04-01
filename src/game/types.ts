@@ -51,6 +51,10 @@ export interface Boss extends Entity {
   teleportTimer?: number;
   shieldActive?: boolean;
   shieldHp?: number;
+  // Laser system
+  laserChargeTimer?: number;
+  laserAngle?: number;
+  ultimateActive?: boolean;
 }
 
 export interface Projectile {

@@ -1207,36 +1207,119 @@ function enterRewardRoom(state: GameState) {
   state.phase = 'reward_room';
 }
 
+// Helper: check if a laser beam from origin at angle hits the player (circle)
+function laserHitsPlayer(origin: Vec2, angle: number, player: Player, width: number): boolean {
+  const dx = player.pos.x - origin.x;
+  const dy = player.pos.y - origin.y;
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  // Project player center onto laser axis
+  const along = dx * cos + dy * sin;
+  if (along < 0) return false; // Behind the boss
+  const perp = Math.abs(-dx * sin + dy * cos);
+  return perp < width / 2 + player.size;
+}
+
 function enterSecretBossRoom(state: GameState) {
-  const secretBossHp = Math.floor(800 * 1.7);
-  const secretRoom = {
+  // Generate a full secret floor with 4 harder rooms + boss room
+  cleanupRoomData(state);
+
+  const diff = state._cache?.diffData || getDifficulty(state.difficulty as DifficultyId);
+  const secretDiff = {
+    ...diff,
+    enemyHpMult: diff.enemyHpMult * 2.0,
+    enemyCountMult: diff.enemyCountMult * 1.5,
+    enemySpeedMult: diff.enemySpeedMult * 1.3,
+    enemyDamageMult: diff.enemyDamageMult * 1.5,
+  };
+
+  // Generate 4 combat rooms
+  const secretRooms: Room[] = [];
+  const enemyPool: EnemyType[] = ['angry_cup', 'drone', 'croissant', 'milk_blob'];
+  const margin = 70;
+
+  for (let i = 0; i < 4; i++) {
+    const enemies: Enemy[] = [];
+    const enemyCount = 6 + i * 2; // Increasing enemy count
+    for (let e = 0; e < enemyCount; e++) {
+      const type = enemyPool[Math.floor(Math.random() * enemyPool.length)];
+      const config = ENEMY_CONFIGS[type];
+      const hp = Math.floor(config.hp * secretDiff.enemyHpMult * 1.5);
+      enemies.push({
+        pos: { x: margin + 50 + Math.random() * (CANVAS_WIDTH - margin * 2 - 100), y: margin + 50 + Math.random() * (CANVAS_HEIGHT - margin * 2 - 100) },
+        vel: { x: 0, y: 0 }, size: config.size, hp, maxHp: hp, type,
+        shootTimer: 20 + Math.random() * 40, moveTimer: 15 + Math.random() * 30,
+        targetPos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 },
+        dropGold: Math.ceil(config.gold * 2),
+      });
+    }
+
+    // Add hazard zones (fire + vortex)
+    const hazardWalls: Wall[] = [];
+    for (let w = 0; w < 3 + i; w++) {
+      hazardWalls.push({
+        x: 100 + Math.random() * (CANVAS_WIDTH - 260),
+        y: 100 + Math.random() * (CANVAS_HEIGHT - 260),
+        w: 30 + Math.random() * 30,
+        h: 30 + Math.random() * 30,
+      });
+    }
+
+    const doors: { pos: Vec2; direction: 'north' | 'south' | 'east' | 'west'; leadsTo: number }[] = [];
+    if (i < 4) doors.push({ pos: { x: CANVAS_WIDTH / 2, y: 15 }, direction: 'north', leadsTo: i + 1 });
+    if (i > 0) doors.push({ pos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT - 15 }, direction: 'south', leadsTo: i - 1 });
+
+    secretRooms.push({
+      x: 0, y: 0, width: CANVAS_WIDTH, height: CANVAS_HEIGHT,
+      enemies,
+      boss: null,
+      pickups: [
+        { pos: { x: 100 + Math.random() * 600, y: 100 + Math.random() * 400 }, type: 'health', value: 40 },
+      ],
+      cleared: false,
+      doors,
+      walls: hazardWalls,
+      isBossRoom: false,
+      isSecretBossRoom: true,
+    });
+  }
+
+  // Boss room (room 4)
+  const secretBossHp = Math.floor(2000 * (diff.bossHpMult ?? 1)); // Massively buffed HP
+  secretRooms.push({
     x: 0, y: 0, width: CANVAS_WIDTH, height: CANVAS_HEIGHT,
     enemies: [],
     boss: {
       pos: { x: CANVAS_WIDTH / 2, y: 160 },
-      vel: { x: 0, y: 0 }, size: 42, hp: secretBossHp, maxHp: secretBossHp,
+      vel: { x: 0, y: 0 }, size: 46, hp: secretBossHp, maxHp: secretBossHp,
       type: 'secret_boss' as const,
       shootTimer: 30, moveTimer: 15, phase: 0, angle: 0,
-      invisibleTimer: 0, summonTimer: 100, dropGold: 100,
+      invisibleTimer: 0, summonTimer: 120, dropGold: 150,
       enrageTimer: 0, teleportTimer: 60, shieldActive: false, shieldHp: 0,
+      laserChargeTimer: 0, laserAngle: 0, ultimateActive: false,
     },
     pickups: [
       { pos: { x: 150, y: 450 }, type: 'health' as const, value: 50 },
       { pos: { x: 650, y: 450 }, type: 'health' as const, value: 50 },
+      { pos: { x: 400, y: 500 }, type: 'health' as const, value: 50 },
     ],
     cleared: false,
-    doors: [],
+    doors: [{ pos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT - 15 }, direction: 'south', leadsTo: 3 }],
     walls: [],
     isBossRoom: true,
     isSecretBossRoom: true,
-  };
+  });
 
-  state.rooms.push(secretRoom);
-  state.currentRoom = state.rooms.length - 1;
+  state.rooms = secretRooms;
+  state.currentRoom = 0;
+  state.floor = TOTAL_FLOORS; // Secret floor index
   state.player.pos.x = CANVAS_WIDTH / 2;
   state.player.pos.y = CANVAS_HEIGHT - 100;
+  for (let i = 0; i < state.projectiles.length; i++) projectilePool.release(state.projectiles[i]);
   state.projectiles.length = 0;
+  for (let i = 0; i < state.particles.length; i++) particlePool.release(state.particles[i]);
   state.particles.length = 0;
   state.exitPortal = null;
   state.rewardPortal = null;
+  state.secretPortal = null;
+  state._cache = buildRunCache(state);
 }
