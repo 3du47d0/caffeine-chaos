@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+/* Google Fonts loaded via <link> in index.html for faster critical path */
 
 @tailwind base;
 @tailwind components;
