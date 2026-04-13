@@ -1,6 +1,6 @@
-# Welcome to your Lovable project
+# Bem Vindo ao projeto utilizando o Lovable AI
 
-## Project info
+## Informações do projeto
 
 **URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
 
