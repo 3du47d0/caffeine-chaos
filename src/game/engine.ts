@@ -1298,6 +1298,7 @@ function enterSecretBossRoom(state: GameState) {
       pickups: [
         { pos: { x: 100 + Math.random() * 600, y: 100 + Math.random() * 400 }, type: 'health', value: 40 },
       ],
+      chests: [],
       cleared: false,
       doors,
       walls: hazardWalls,
@@ -1325,6 +1326,7 @@ function enterSecretBossRoom(state: GameState) {
       { pos: { x: 650, y: 450 }, type: 'health' as const, value: 50 },
       { pos: { x: 400, y: 500 }, type: 'health' as const, value: 50 },
     ],
+    chests: [],
     cleared: false,
     doors: [{ pos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT - 15 }, direction: 'south', leadsTo: 3 }],
     walls: [],
