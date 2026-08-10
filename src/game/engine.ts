@@ -1,22 +1,29 @@
 import {
   GameState, Player, Projectile, Particle, Vec2, Enemy, Upgrades, Boss, RunBuff, RunStats,
-  Room, EnemyType, Wall,
+  Room, EnemyType, Wall, Chest, DamageNumber,
 } from './types';
 import {
   CANVAS_WIDTH, CANVAS_HEIGHT, PLAYER_SIZE, PLAYER_SPEED, PLAYER_HP,
   PLAYER_SHOOT_COOLDOWN, PLAYER_DASH_COOLDOWN, PLAYER_DASH_DURATION,
   PLAYER_DASH_SPEED, PLAYER_ULTIMATE_COOLDOWN, PLAYER_INVINCIBLE_AFTER_HIT,
   BEAN_SPEED, BEAN_DAMAGE, BEAN_SIZE, ENEMY_CONFIGS, ROOMS_PER_FLOOR, TOTAL_FLOORS,
-  IN_RUN_SHOP_ITEMS,
+  IN_RUN_SHOP_ITEMS, CHARGE_TIME, CHARGE_DAMAGE_MULT, CHARGE_MOVE_PENALTY,
+  COMBO_WINDOW, COMBO_DAMAGE_STEP, COMBO_DAMAGE_CAP, BASE_CRIT_CHANCE, CRIT_MULT,
 } from './constants';
 import { generateFloor } from './rooms';
-import { defaultRunBuffs, drawRewards, drawHighRarityRewards } from './buffs';
+import {
+  defaultRunBuffs, drawRewards, drawHighRarityRewards, drawChestRewards,
+  getBuffMultiplier, BuffRarity,
+} from './buffs';
 import { getAchievementBonuses, loadAchievementProgress, allAchievementsUnlocked } from './achievements';
 import { acquireProjectile, acquireParticle, projectilePool, particlePool } from './pool';
 import { getCharacter, CharacterId, unlockCharacter } from './characters';
 import { getDifficulty, DifficultyId, unlockImpossible } from './difficulty';
 import { unlockSupremo } from './characters';
 import { getFloorTheme } from './floors';
+import { loadPerfMode, getPerfConfig, enforceParticleBudget } from './perf';
+import { discoverLore } from './lore';
+
 
 // ---- Pre-allocated reusable vectors to avoid GC ----
 const _tmpVec: Vec2 = { x: 0, y: 0 };
