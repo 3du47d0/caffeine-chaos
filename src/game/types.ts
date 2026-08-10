@@ -298,6 +298,21 @@ export interface GameState {
   // Track return destination from reward room
   rewardReturnRoom: number;
   rewardReturnFloor: number;
+  // ---- Performance ----
+  perfMode: import('./perf').PerfMode;
+  // ---- Combat feedback ----
+  damageNumbers: DamageNumber[];
+  comboCount: number;
+  comboTimer: number;
+  bestCombo: number;
+  hitStop: number;
+  /** id of a lore fragment discovered this frame (consumed by the UI) */
+  pendingLore: string | null;
+  /** ids of lore fragments discovered during this run */
+  loreFound: string[];
+  /** true while a chest reward is being chosen */
+  chestReward: boolean;
+
   // Cached per-run computations to avoid per-frame GC
   _cache: any;
 }
