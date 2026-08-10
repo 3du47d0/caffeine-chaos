@@ -683,12 +683,13 @@ function rollDamage(state: GameState, base: number): { damage: number; crit: boo
 
 function getSpeedMult(state: GameState): number {
   const cache = state._cache!;
-  return (1 + state.upgrades.speedBonus * 0.1 + cache.achieveBonuses.speedBonus) * (1 + state.runBuffs.descaf * 0.2) * cache.charData.speedMult;
+  const descaf = Math.min(0.6, state.runBuffs.descaf * 0.12);
+  return (1 + state.upgrades.speedBonus * 0.1 + cache.achieveBonuses.speedBonus) * (1 + descaf) * cache.charData.speedMult;
 }
 
 function getShootCooldown(state: GameState): number {
   const cache = state._cache!;
-  const chantillyBonus = 1 - state.runBuffs.chantilly * 0.15;
+  const chantillyBonus = 1 - Math.min(0.6, state.runBuffs.chantilly * 0.11);
   return Math.max(3, Math.floor(PLAYER_SHOOT_COOLDOWN * chantillyBonus * cache.charData.shootCdMult));
 }
 
@@ -786,7 +787,7 @@ export function update(state: GameState): GameState {
   const damageMult = getDamageMult(state);
   const speedMult = getSpeedMult(state);
   const dashCdr = (1 - state.upgrades.dashCdrBonus * 0.15) * (1 - cache.achieveBonuses.dashBonus);
-  const dashSpeedMult = 1 + state.runBuffs.descaf * 0.2;
+  const dashSpeedMult = 1 + Math.min(0.5, state.runBuffs.descaf * 0.1);
   const diff = cache.diffData;
 
   state.isBossRoom = room.isBossRoom;
@@ -808,7 +809,11 @@ export function update(state: GameState): GameState {
   normalizeInto(_tmpVec, _tmpNorm);
   const moveDirX = _tmpNorm.x;
   const moveDirY = _tmpNorm.y;
-  const speed = player.dashTimer > 0 ? PLAYER_DASH_SPEED * dashSpeedMult : PLAYER_SPEED * speedMult;
+  // Charging a heavy shot slows you down — a real risk/reward decision.
+  const chargePenalty = player.chargeTimer > 0 ? CHARGE_MOVE_PENALTY : 1;
+  const speed = player.dashTimer > 0
+    ? PLAYER_DASH_SPEED * dashSpeedMult
+    : PLAYER_SPEED * speedMult * chargePenalty;
 
   // Icy floor: add momentum/sliding
   const isIcy = cache.floorTheme.icyFloor && player.dashTimer <= 0;
@@ -899,31 +904,47 @@ export function update(state: GameState): GameState {
   if (player.dashCooldown > 0) player.dashCooldown--;
   if (player.ultimateCooldown > 0) player.ultimateCooldown--;
   if (player.invincibleTimer > 0) player.invincibleTimer--;
+  if (player.dashBuffTimer > 0) player.dashBuffTimer--;
+  if (player.perfectDodgeTimer > 0) player.perfectDodgeTimer--;
   if (state.screenShake > 0) state.screenShake -= 0.5;
   if (state.damageFlash > 0) state.damageFlash--;
+  if (state.hitStop > 0) state.hitStop--;
+
+  // Combo decays when you stop landing hits.
+  if (state.comboTimer > 0) {
+    state.comboTimer--;
+    if (state.comboTimer === 0) state.comboCount = 0;
+  }
+
+  // Regen buff: slow, steady healing between fights.
+  if (state.runBuffs.regen > 0 && player.hp < player.maxHp) {
+    player.regenTimer++;
+    const interval = Math.max(60, Math.floor(180 / state.runBuffs.regen));
+    if (player.regenTimer >= interval) {
+      player.regenTimer = 0;
+      player.hp = Math.min(player.maxHp, player.hp + 1);
+    }
+  }
 
   // Dash
   if (keys.has(' ') && player.dashCooldown <= 0 && player.dashTimer <= 0) {
     player.dashTimer = PLAYER_DASH_DURATION;
     player.dashCooldown = Math.floor(PLAYER_DASH_COOLDOWN * dashCdr);
-    player.invincibleTimer = PLAYER_DASH_DURATION;
+    player.invincibleTimer = PLAYER_DASH_DURATION + 6; // generous i-frames
+    player.dashBuffTimer = 90;
     state.runStats.dashesUsed++;
     spawnParticles(state, player.pos, '#87CEEB', 8);
 
     for (let ei = 0; ei < room.enemies.length; ei++) {
       const enemy = room.enemies[ei];
       if (dist(player.pos, enemy.pos) < player.size + enemy.size + 20) {
-        const dmg = 15 * damageMult;
-        enemy.hp -= dmg;
-        state.runStats.totalDamageDealt += dmg;
+        damageEnemy(state, enemy, 15 * damageMult);
         spawnParticles(state, enemy.pos, '#FFD700', 5);
       }
     }
     if (room.boss && room.boss.hp > 0) {
       if (dist(player.pos, room.boss.pos) < player.size + room.boss.size + 20) {
-        const dmg = 15 * damageMult;
-        room.boss.hp -= dmg;
-        state.runStats.totalDamageDealt += dmg;
+        damageBoss(state, room.boss, 15 * damageMult);
       }
     }
   }
@@ -939,32 +960,60 @@ export function update(state: GameState): GameState {
     for (let ei = 0; ei < room.enemies.length; ei++) {
       const enemy = room.enemies[ei];
       if (dist(player.pos, enemy.pos) < 200) {
-        const dmg = 50 * damageMult;
-        enemy.hp -= dmg;
-        state.runStats.totalDamageDealt += dmg;
+        damageEnemy(state, enemy, 50 * damageMult);
         spawnParticles(state, enemy.pos, '#D4A03A', 8);
       }
     }
     if (room.boss && room.boss.hp > 0 && dist(player.pos, room.boss.pos) < 200) {
-      const dmg = 50 * damageMult;
-      room.boss.hp -= dmg;
-      state.runStats.totalDamageDealt += dmg;
+      damageBoss(state, room.boss, 50 * damageMult);
     }
   }
 
-  // Shooting
+  // ---- Shooting: tap to fire, hold "e" (or shift) to charge a heavy shot ----
   const shootCooldown = getShootCooldown(state);
-  if (state.mouseDown && player.shootCooldown <= 0 && player.dashTimer <= 0) {
-    player.shootCooldown = shootCooldown;
+  const pierce = Math.floor(state.runBuffs.ricochete);
+  const wantsCharge = keys.has('e') || keys.has('shift');
+
+  const fireBean = (chargeRatio: number) => {
     _tmpVec.x = state.mousePos.x - player.pos.x;
     _tmpVec.y = state.mousePos.y - player.pos.y;
     normalizeInto(_tmpVec, _tmpNorm);
+    const charged = chargeRatio >= 1;
+    const dmgScale = 1 + chargeRatio * (CHARGE_DAMAGE_MULT - 1);
+    const { damage, crit } = rollDamage(state, BEAN_DAMAGE * damageMult * dmgScale);
+    const sizeScale = 1 + chargeRatio * 0.9 + (state.runBuffs.torrado >= 3 ? 0.2 : 0);
     state.projectiles.push(acquireProjectile(
       player.pos.x + _tmpNorm.x * player.size,
       player.pos.y + _tmpNorm.y * player.size,
-      _tmpNorm.x * BEAN_SPEED, _tmpNorm.y * BEAN_SPEED,
-      BEAN_SIZE, BEAN_DAMAGE * damageMult, true, 60,
+      _tmpNorm.x * BEAN_SPEED * (1 + chargeRatio * 0.25),
+      _tmpNorm.y * BEAN_SPEED * (1 + chargeRatio * 0.25),
+      BEAN_SIZE * sizeScale, damage, true, 60,
     ));
+    const shot = state.projectiles[state.projectiles.length - 1];
+    shot.pierce = pierce + (charged ? 1 : 0);
+    shot.charged = charged;
+    shot.crit = crit;
+    if (charged) {
+      state.screenShake = Math.max(state.screenShake, 4);
+      spawnParticles(state, player.pos, '#FFD27F', 10, 4);
+    }
+  };
+
+  if (player.dashTimer <= 0 && wantsCharge && state.mouseDown) {
+    // Building up a charged attack.
+    if (player.chargeTimer < CHARGE_TIME) player.chargeTimer++;
+    if (player.chargeTimer % 6 === 0) {
+      spawnParticles(state, player.pos, '#D4A03A', 1, 1.5);
+    }
+  } else if (player.chargeTimer > 0) {
+    // Released — fire proportionally to how long it was held.
+    const ratio = Math.min(1, player.chargeTimer / CHARGE_TIME);
+    player.chargeTimer = 0;
+    player.shootCooldown = Math.round(shootCooldown * (1 + ratio));
+    fireBean(ratio);
+  } else if (state.mouseDown && player.shootCooldown <= 0 && player.dashTimer <= 0) {
+    player.shootCooldown = shootCooldown;
+    fireBean(0);
   }
 
   // Update enemies with new abilities
