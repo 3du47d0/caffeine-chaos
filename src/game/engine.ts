@@ -226,6 +226,7 @@ export function createInitialState(
   };
 
   state._cache = buildRunCache(state);
+  discoverLore('intro_1');
   return state;
 }
 
@@ -765,6 +766,12 @@ export function update(state: GameState): GameState {
       state.clearMessageTimer = 0;
       state.roomTimer = 0;
       state.roomDamageTaken = 0;
+      state.damageNumbers.length = 0;
+      state.comboCount = 0;
+      state.comboTimer = 0;
+      state.player.chargeTimer = 0;
+      if (state.floor === 1) tryLore(state, 'frigorifico_1');
+      if (state.floor === 2) tryLore(state, 'fornalha_1');
       if (state.runBuffs.leite_aveia > 0) {
         state.player.shield = true;
       }
@@ -936,6 +943,7 @@ export function update(state: GameState): GameState {
 
   // Dash
   if (keys.has(' ') && player.dashCooldown <= 0 && player.dashTimer <= 0) {
+    player.chargeTimer = 0;
     player.dashTimer = PLAYER_DASH_DURATION;
     player.dashCooldown = Math.floor(PLAYER_DASH_COOLDOWN * dashCdr);
     player.invincibleTimer = PLAYER_DASH_DURATION + 6; // generous i-frames
@@ -1387,8 +1395,9 @@ export function update(state: GameState): GameState {
         player.hp = Math.min(player.maxHp, player.hp + pickup.value);
         spawnParticles(state, pickup.pos, '#90EE90', 8);
       } else {
-        state.goldCollected += pickup.value;
-        state.runStats.goldCollected += pickup.value;
+        const value = Math.round(pickup.value * (1 + state.runBuffs.sorte * 0.2));
+        state.goldCollected += value;
+        state.runStats.goldCollected += value;
         spawnParticles(state, pickup.pos, '#FFD700', 6);
       }
     } else {
@@ -1607,6 +1616,7 @@ function enterSecretBossRoom(state: GameState) {
     isSecretBossRoom: true,
   });
 
+  tryLore(state, 'abismo_2');
   state.rooms = secretRooms;
   state.currentRoom = 0;
   state.floor = TOTAL_FLOORS; // Secret floor index
