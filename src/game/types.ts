@@ -87,12 +87,40 @@ export interface Projectile {
   lifetime: number;
   isBurnZone?: boolean;
   isVortex?: boolean;
+  /** how many extra enemies this shot can go through */
+  pierce?: number;
+  /** heavy/charged shot — bigger impact feedback */
+  charged?: boolean;
+  /** rolled as a critical hit */
+  crit?: boolean;
 }
 
 export interface Pickup {
   pos: Vec2;
   type: 'health' | 'gold';
   value: number;
+}
+
+export type ChestKind = 'wooden' | 'golden';
+
+export interface Chest {
+  pos: Vec2;
+  kind: ChestKind;
+  opened: boolean;
+  /** small idle animation timer */
+  bob: number;
+}
+
+/** Floating combat text */
+export interface DamageNumber {
+  x: number;
+  y: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  value: number;
+  crit: boolean;
+  heal?: boolean;
 }
 
 export interface Room {
@@ -103,6 +131,7 @@ export interface Room {
   enemies: Enemy[];
   boss: Boss | null;
   pickups: Pickup[];
+  chests: Chest[];
   cleared: boolean;
   doors: Door[];
   walls: Wall[];
@@ -134,12 +163,27 @@ export interface ExitPortal {
 
 // ---- Run Buff System ----
 export type RunBuffId =
-  | 'torrado'
-  | 'leite_aveia'
-  | 'chantilly'
-  | 'termo'
-  | 'canela'
-  | 'descaf';
+  // offensive
+  | 'torrado'      // +damage
+  | 'chantilly'    // +attack speed
+  | 'canela'       // burn chance
+  | 'critico'      // crit chance
+  | 'ricochete'    // piercing shots
+  | 'adrenalina'   // more damage at low HP
+  // defensive
+  | 'termo'        // +max hearts
+  | 'leite_aveia'  // shield
+  | 'blindagem'    // damage reduction
+  | 'regen'        // health regeneration
+  | 'vampiro'      // lifesteal on kill
+  // mobility
+  | 'descaf'       // speed & dash
+  | 'fantasma'     // damage window after dash
+  | 'ima'          // pickup magnet
+  // special
+  | 'sorte';       // better rarities & gold
+
+export type BuffCategory = 'offensive' | 'defensive' | 'mobility' | 'special';
 
 export interface RunBuff {
   id: RunBuffId;
@@ -155,7 +199,17 @@ export interface RunBuffs {
   termo: number;
   canela: number;
   descaf: number;
+  critico: number;
+  ricochete: number;
+  adrenalina: number;
+  blindagem: number;
+  regen: number;
+  vampiro: number;
+  fantasma: number;
+  ima: number;
+  sorte: number;
 }
+
 
 export interface RoomTime {
   room: number;
