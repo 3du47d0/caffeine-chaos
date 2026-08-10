@@ -1,7 +1,9 @@
-import { Room, Enemy, Pickup, Vec2, EnemyType, Wall, Boss, BossType } from './types';
+import { Room, Enemy, Pickup, Vec2, EnemyType, Wall, Boss, BossType, Chest } from './types';
 import { ROOM_WIDTH, ROOM_HEIGHT, ENEMY_CONFIGS } from './constants';
 import { DifficultyConfig } from './difficulty';
 import { getFloorTheme } from './floors';
+import { loadMeta, chestChanceBonus } from './meta';
+
 
 function rand(min: number, max: number): number {
   return Math.random() * (max - min) + min;
@@ -247,6 +249,21 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
       }
     }
 
+    // ---- Chests: reward exploration in normal rooms ----
+    const chests: Chest[] = [];
+    if (!isShop && !isBoss && i > 0) {
+      const bonus = chestChanceBonus(loadMeta());
+      if (Math.random() < 0.22 + bonus) {
+        const golden = Math.random() < 0.18 + floor * 0.05;
+        chests.push({
+          pos: { x: rand(margin + 40, ROOM_WIDTH - margin - 40), y: rand(margin + 40, ROOM_HEIGHT - margin - 40) },
+          kind: golden ? 'golden' : 'wooden',
+          opened: false,
+          bob: Math.random() * Math.PI * 2,
+        });
+      }
+    }
+
     const doors: { pos: Vec2; direction: 'north' | 'south' | 'east' | 'west'; leadsTo: number }[] = [];
     if (i < numRooms - 1) {
       doors.push({ pos: { x: ROOM_WIDTH / 2, y: 15 }, direction: 'north', leadsTo: i + 1 });
@@ -263,12 +280,14 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
       enemies,
       boss: isBoss ? createBoss(floor, diff) : null,
       pickups,
+      chests,
       cleared: isShop, // shop rooms are pre-cleared
       doors,
       walls: (i === 0 || isShop) ? [] : generateWalls(i, floor),
       isBossRoom: isBoss,
       isShopRoom: isShop,
     });
+
   }
 
   return rooms;

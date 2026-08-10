@@ -20,9 +20,18 @@ export interface Player extends Entity {
   facing: Vec2;
   shootCooldown: number;
   shield: boolean;
+  /** frames the heavy attack has been charging (0 = not charging) */
+  chargeTimer: number;
+  /** frames left of the post-dash damage window */
+  dashBuffTimer: number;
+  /** frames left of a perfect-dodge bonus */
+  perfectDodgeTimer: number;
+  /** accumulator for regeneration */
+  regenTimer: number;
 }
 
 export type EnemyType = 'croissant' | 'angry_cup' | 'milk_blob' | 'drone';
+export type EnemyRole = 'heavy' | 'ranged' | 'fast' | 'special';
 export type BossType = 'grinder' | 'steam_king' | 'overflowing_pot' | 'secret_boss';
 
 export interface Enemy extends Entity {
@@ -35,7 +44,19 @@ export interface Enemy extends Entity {
   // Enemy abilities
   dashTimer?: number;
   abilityTimer?: number;
+  /** telegraph frames before a charge (heavy) */
+  windupTimer?: number;
+  /** frames of an active charge */
+  chargeTimer?: number;
+  /** orbit angle used by special enemies */
+  orbitAngle?: number;
+  /** white flash frames after being hit */
+  hitFlash?: number;
+  /** knockback velocity */
+  knockX?: number;
+  knockY?: number;
 }
+
 
 export interface Boss extends Entity {
   type: BossType;
@@ -66,12 +87,40 @@ export interface Projectile {
   lifetime: number;
   isBurnZone?: boolean;
   isVortex?: boolean;
+  /** how many extra enemies this shot can go through */
+  pierce?: number;
+  /** heavy/charged shot — bigger impact feedback */
+  charged?: boolean;
+  /** rolled as a critical hit */
+  crit?: boolean;
 }
 
 export interface Pickup {
   pos: Vec2;
   type: 'health' | 'gold';
   value: number;
+}
+
+export type ChestKind = 'wooden' | 'golden';
+
+export interface Chest {
+  pos: Vec2;
+  kind: ChestKind;
+  opened: boolean;
+  /** small idle animation timer */
+  bob: number;
+}
+
+/** Floating combat text */
+export interface DamageNumber {
+  x: number;
+  y: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  value: number;
+  crit: boolean;
+  heal?: boolean;
 }
 
 export interface Room {
@@ -82,6 +131,7 @@ export interface Room {
   enemies: Enemy[];
   boss: Boss | null;
   pickups: Pickup[];
+  chests: Chest[];
   cleared: boolean;
   doors: Door[];
   walls: Wall[];
@@ -113,12 +163,27 @@ export interface ExitPortal {
 
 // ---- Run Buff System ----
 export type RunBuffId =
-  | 'torrado'
-  | 'leite_aveia'
-  | 'chantilly'
-  | 'termo'
-  | 'canela'
-  | 'descaf';
+  // offensive
+  | 'torrado'      // +damage
+  | 'chantilly'    // +attack speed
+  | 'canela'       // burn chance
+  | 'critico'      // crit chance
+  | 'ricochete'    // piercing shots
+  | 'adrenalina'   // more damage at low HP
+  // defensive
+  | 'termo'        // +max hearts
+  | 'leite_aveia'  // shield
+  | 'blindagem'    // damage reduction
+  | 'regen'        // health regeneration
+  | 'vampiro'      // lifesteal on kill
+  // mobility
+  | 'descaf'       // speed & dash
+  | 'fantasma'     // damage window after dash
+  | 'ima'          // pickup magnet
+  // special
+  | 'sorte';       // better rarities & gold
+
+export type BuffCategory = 'offensive' | 'defensive' | 'mobility' | 'special';
 
 export interface RunBuff {
   id: RunBuffId;
@@ -134,7 +199,17 @@ export interface RunBuffs {
   termo: number;
   canela: number;
   descaf: number;
+  critico: number;
+  ricochete: number;
+  adrenalina: number;
+  blindagem: number;
+  regen: number;
+  vampiro: number;
+  fantasma: number;
+  ima: number;
+  sorte: number;
 }
+
 
 export interface RoomTime {
   room: number;
@@ -223,6 +298,21 @@ export interface GameState {
   // Track return destination from reward room
   rewardReturnRoom: number;
   rewardReturnFloor: number;
+  // ---- Performance ----
+  perfMode: import('./perf').PerfMode;
+  // ---- Combat feedback ----
+  damageNumbers: DamageNumber[];
+  comboCount: number;
+  comboTimer: number;
+  bestCombo: number;
+  hitStop: number;
+  /** id of a lore fragment discovered this frame (consumed by the UI) */
+  pendingLore: string | null;
+  /** ids of lore fragments discovered during this run */
+  loreFound: string[];
+  /** true while a chest reward is being chosen */
+  chestReward: boolean;
+
   // Cached per-run computations to avoid per-frame GC
   _cache: any;
 }

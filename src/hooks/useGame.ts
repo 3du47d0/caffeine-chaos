@@ -11,6 +11,9 @@ import {
 } from '../game/achievements';
 import { DifficultyId } from '../game/difficulty';
 import { CharacterId } from '../game/characters';
+import { loadMeta, saveMeta } from '../game/meta';
+import { loadPerfMode, savePerfMode, optimizeNow, PerfMode } from '../game/perf';
+import { discoverLore } from '../game/lore';
 
 // Fixed timestep constants
 const FIXED_DT = 1000 / 60; // 16.67ms
@@ -34,6 +37,34 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const [unlockedAchievement, setUnlockedAchievement] = useState<Achievement | null>(null);
   const [isBossRoom, setIsBossRoom] = useState(false);
   const [roomTimesVersion, setRoomTimesVersion] = useState(0);
+  const [perfMode, setPerfModeState] = useState<PerfMode>(() => loadPerfMode());
+
+  /** Records permanent (meta) progression at the end of a run. */
+  const recordMeta = useCallback((state: GameState) => {
+    const meta = loadMeta();
+    meta.runs += 1;
+    meta.totalKills += state.runStats.enemiesKilled;
+    meta.totalBosses += state.runStats.bossesDefeated;
+    meta.deepestFloor = Math.max(meta.deepestFloor, state.floor);
+    if (state.phase === 'victory' || state.phase === 'secret_victory') {
+      if (meta.bestRunFrames === 0 || state.runTimer < meta.bestRunFrames) {
+        meta.bestRunFrames = state.runTimer;
+      }
+    }
+    saveMeta(meta);
+    discoverLore('intro_2');
+    if (meta.runs >= 3) discoverLore('verdade_1');
+    if (state.phase === 'victory' || state.phase === 'secret_victory') discoverLore('verdade_2');
+  }, []);
+
+  const setPerfMode = useCallback((mode: PerfMode) => {
+    savePerfMode(mode);
+    setPerfModeState(mode);
+    if (stateRef.current) stateRef.current.perfMode = mode;
+  }, []);
+
+  /** Manual "Otimizar Jogo" — safe to trigger mid-run. */
+  const optimizeGame = useCallback(() => optimizeNow(stateRef.current), []);
 
   const savedGoldRef = useRef(0);
   const upgradesRef = useRef<Upgrades>({
@@ -127,6 +158,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
   const startRun = useCallback((difficulty: DifficultyId = 'medium', character: CharacterId = 'barista') => {
     const state = createInitialState(upgradesRef.current, difficulty, character);
+    state.perfMode = perfMode;
     state.particleMultiplier = particleMult;
     stateRef.current = state;
     setPhase('playing');
@@ -141,7 +173,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     pv.shield = false; pv.runTimer = 0; pv.isBossRoom = false; pv.roomTimesLen = 0;
     musicManager.init();
     musicManager.setMode('explore');
-  }, [particleMult, musicManager]);
+  }, [particleMult, musicManager, perfMode]);
 
   const returnToLobby = useCallback(() => {
     const state = stateRef.current;
@@ -149,6 +181,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       savedGoldRef.current += state.goldCollected;
       setGold(savedGoldRef.current);
       updateAchievements(state);
+      recordMeta(state);
       saveData();
     }
     stateRef.current = null;
@@ -156,7 +189,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     setRunGold(0);
     setRewardChoices([]);
     musicManager.stop();
-  }, [saveData, updateAchievements, musicManager]);
+  }, [saveData, updateAchievements, recordMeta, musicManager]);
 
   const chooseBuff = useCallback((buff: RunBuff) => {
     const state = stateRef.current;
@@ -205,6 +238,8 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const hardReset = useCallback(() => {
     localStorage.removeItem('cafe_chaos_save');
     localStorage.removeItem('cafe_chaos_achievements');
+    localStorage.removeItem('cafe_chaos_meta');
+    localStorage.removeItem('cafe_chaos_lore');
     savedGoldRef.current = 0;
     upgradesRef.current = { maxHpBonus: 0, damageBonus: 0, speedBonus: 0, dashCdrBonus: 0 };
     setGold(0);
@@ -331,6 +366,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           }
           setGold(savedGoldRef.current);
           updateAchievements(state);
+          recordMeta(state);
 
           if (state.phase === 'victory' || state.phase === 'secret_victory') {
             if (state.floor >= 2 && state.runStats.floorDamageTaken === 0) {
@@ -358,13 +394,14 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       cancelAnimationFrame(animFrameRef.current);
       inputManager.detach();
     };
-  }, [canvasRef, saveData, inputManager, musicManager, updateAchievements]);
+  }, [canvasRef, saveData, inputManager, musicManager, updateAchievements, recordMeta, perfMode]);
 
   return {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
     runTimer, roomTimes, inputManager, isBossRoom,
     startRun, returnToLobby, chooseBuff, toggleMusic,
     shopBuy, shopLeave, hardReset,
+    perfMode, setPerfMode, optimizeGame,
     upgrades: upgradesRef.current,
     unlockedAchievement, clearAchievementNotification: () => setUnlockedAchievement(null),
     musicMuted: musicManager.isMuted(),

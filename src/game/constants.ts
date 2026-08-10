@@ -17,16 +17,44 @@ export const PLAYER_DASH_SPEED = 10;
 export const PLAYER_ULTIMATE_COOLDOWN = 600;
 export const PLAYER_INVINCIBLE_AFTER_HIT = 30;
 
+// ---- Charged (heavy) attack ----
+/** frames needed for a full charge */
+export const CHARGE_TIME = 42;
+/** damage multiplier of a fully charged shot */
+export const CHARGE_DAMAGE_MULT = 2.6;
+/** how much slower the player moves while charging */
+export const CHARGE_MOVE_PENALTY = 0.55;
+
+// ---- Combo system ----
+/** frames without landing a hit before the combo resets */
+export const COMBO_WINDOW = 110;
+/** damage bonus per combo stack */
+export const COMBO_DAMAGE_STEP = 0.015;
+/** maximum combo damage bonus (+30%) */
+export const COMBO_DAMAGE_CAP = 0.3;
+
+// ---- Crit ----
+export const BASE_CRIT_CHANCE = 0.05;
+export const CRIT_MULT = 2;
+
 export const BEAN_SPEED = 7;
 export const BEAN_DAMAGE = 20;
 export const BEAN_SIZE = 5;
 
+/**
+ * Enemy roles — difficulty comes from behaviour, not from inflated stats.
+ * heavy   : slow, tanky, telegraphed charge
+ * fast    : fragile, erratic, closes distance quickly
+ * ranged  : keeps distance and forces the player to move
+ * special : orbits the player and fires bursts, needs positioning
+ */
 export const ENEMY_CONFIGS = {
-  croissant: { hp: 60, size: 18, speed: 1.5, damage: 15, gold: 3, color: '#D4A03A' },
-  angry_cup: { hp: 80, size: 22, speed: 1, damage: 20, gold: 5, color: '#8B4513' },
-  milk_blob: { hp: 40, size: 16, speed: 2, damage: 10, gold: 2, color: '#F5F5DC' },
-  drone: { hp: 50, size: 14, speed: 2.5, damage: 12, gold: 4, color: '#708090' },
+  croissant: { hp: 90, size: 20, speed: 1.05, damage: 16, gold: 4, color: '#D4A03A', role: 'heavy' },
+  angry_cup: { hp: 55, size: 20, speed: 0.95, damage: 14, gold: 5, color: '#8B4513', role: 'ranged' },
+  milk_blob: { hp: 32, size: 15, speed: 2.6, damage: 10, gold: 2, color: '#F5F5DC', role: 'fast' },
+  drone: { hp: 48, size: 14, speed: 2.1, damage: 11, gold: 4, color: '#708090', role: 'special' },
 } as const;
+
 
 export const COLORS = {
   floor: '#3D2B1F',
