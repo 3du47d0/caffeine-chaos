@@ -1,5 +1,6 @@
-import { GameState, Enemy, Particle, Pickup, Projectile, Room, Wall, Boss } from './types';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS } from './constants';
+import { GameState, Enemy, Particle, Pickup, Projectile, Room, Wall, Boss, Chest, DamageNumber } from './types';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS, CHARGE_TIME } from './constants';
+import { getPerfConfig } from './perf';
 import { getFloorTheme, FloorTheme } from './floors';
 
 function drawPixelRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
@@ -148,6 +149,30 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState) {
     ctx.globalAlpha = 1;
   }
 
+  // Charged attack: a ring that fills up and flashes when ready.
+  if (player.chargeTimer > 0) {
+    const ratio = Math.min(1, player.chargeTimer / CHARGE_TIME);
+    const full = ratio >= 1;
+    ctx.strokeStyle = full ? '#FFF3B0' : '#D4A03A';
+    ctx.lineWidth = full ? 4 : 3;
+    ctx.globalAlpha = full ? 0.6 + Math.sin(_frameTime / 60) * 0.35 : 0.85;
+    ctx.beginPath();
+    ctx.arc(x, y, s + 10, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // Post-dash damage window
+  if (player.dashBuffTimer > 0 && player.dashTimer <= 0) {
+    ctx.strokeStyle = '#C8A2FF';
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.arc(x, y, s + 5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
   if (player.shield) {
     const t = _frameTime / 300;
     ctx.strokeStyle = '#87CEEB';
@@ -163,6 +188,18 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState) {
 function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
   const { pos, size, type, hp, maxHp } = enemy;
   const isMiniBoss = (enemy as any).isMiniBoss;
+
+  // Heavy enemies telegraph their charge with an expanding warning ring.
+  if (enemy.windupTimer && enemy.windupTimer > 0) {
+    const t = 1 - enemy.windupTimer / 34;
+    ctx.strokeStyle = '#FF5544';
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.35 + t * 0.5;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, size + 6 + t * 14, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
 
   // Mini-boss aura
   if (isMiniBoss) {
@@ -230,6 +267,16 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
       drawPixelRect(ctx, pos.x + size * 0.8, pos.y - 2, size * 0.4, 4, '#888');
       drawPixelCircle(ctx, pos.x, pos.y, 3, '#F00');
       break;
+  }
+
+  // White flash on hit — the core "my shot connected" feedback.
+  if (enemy.hitFlash && enemy.hitFlash > 0) {
+    ctx.globalAlpha = Math.min(0.75, enemy.hitFlash / 6);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, size + 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   if (hp < maxHp) {
@@ -837,6 +884,70 @@ let _frameTime = 0;
 
 export function getFrameTime(): number { return _frameTime; }
 
+function drawChest(ctx: CanvasRenderingContext2D, chest: Chest) {
+  if (chest.opened) return;
+  const bob = Math.sin(chest.bob) * 3;
+  const x = chest.pos.x;
+  const y = chest.pos.y + bob;
+  const gold = chest.kind === 'golden';
+  const body = gold ? '#D9A404' : '#8B5A2B';
+  const lid = gold ? '#FFD700' : '#A9713F';
+
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(chest.pos.x, chest.pos.y + 16, 16, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // glow
+  ctx.globalAlpha = 0.25 + Math.sin(chest.bob * 1.6) * 0.12;
+  ctx.fillStyle = lid;
+  ctx.beginPath();
+  ctx.arc(x, y, 26, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  drawPixelRect(ctx, x - 16, y - 4, 32, 18, body);
+  drawPixelRect(ctx, x - 16, y - 14, 32, 12, lid);
+  drawPixelRect(ctx, x - 3, y - 6, 6, 10, '#3A2A17');
+  ctx.strokeStyle = '#2C1810';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x - 16, y - 14, 32, 28);
+}
+
+function drawDamageNumbers(ctx: CanvasRenderingContext2D, numbers: DamageNumber[]) {
+  ctx.textAlign = 'center';
+  for (let i = 0; i < numbers.length; i++) {
+    const n = numbers[i];
+    const alpha = Math.min(1, n.life / (n.maxLife * 0.5));
+    ctx.globalAlpha = alpha;
+    ctx.font = n.crit ? 'bold 17px monospace' : 'bold 12px monospace';
+    ctx.fillStyle = n.heal ? '#7BE07B' : n.crit ? '#FFD34D' : '#FFFFFF';
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+    ctx.lineWidth = 3;
+    const label = `${n.heal ? '+' : ''}${n.value}${n.crit ? '!' : ''}`;
+    ctx.strokeText(label, n.x, n.y);
+    ctx.fillText(label, n.x, n.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawCombo(ctx: CanvasRenderingContext2D, state: GameState) {
+  if (state.comboCount < 3) return;
+  const ratio = state.comboTimer / 110;
+  ctx.textAlign = 'right';
+  ctx.globalAlpha = 0.55 + ratio * 0.45;
+  ctx.font = 'bold 22px monospace';
+  ctx.fillStyle = state.comboCount >= 20 ? '#FF7A3D' : '#FFD34D';
+  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+  ctx.lineWidth = 4;
+  ctx.strokeText(`x${state.comboCount}`, CANVAS_WIDTH - 55, 90);
+  ctx.fillText(`x${state.comboCount}`, CANVAS_WIDTH - 55, 90);
+  ctx.font = '9px monospace';
+  ctx.fillText('COMBO', CANVAS_WIDTH - 55, 104);
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'left';
+}
+
 export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   // Cache Date.now() once per frame for all draw functions
   _frameTime = Date.now();
@@ -862,7 +973,8 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   drawWalls(ctx, room, theme);
   drawDoors(ctx, room);
 
-  // Batch: draw all pickups
+  // Batch: draw all chests and pickups
+  for (let i = 0; i < room.chests.length; i++) drawChest(ctx, room.chests[i]);
   for (let i = 0; i < room.pickups.length; i++) drawPickup(ctx, room.pickups[i]);
   drawExitPortal(ctx, state);
 
@@ -875,6 +987,8 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
 
   drawParticles(ctx, state.particles);
   drawPlayer(ctx, state);
+  drawDamageNumbers(ctx, state.damageNumbers);
+  drawCombo(ctx, state);
   drawMinimap(ctx, state);
 
   ctx.fillStyle = '#FFF';
