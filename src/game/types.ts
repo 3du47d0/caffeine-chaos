@@ -20,9 +20,18 @@ export interface Player extends Entity {
   facing: Vec2;
   shootCooldown: number;
   shield: boolean;
+  /** frames the heavy attack has been charging (0 = not charging) */
+  chargeTimer: number;
+  /** frames left of the post-dash damage window */
+  dashBuffTimer: number;
+  /** frames left of a perfect-dodge bonus */
+  perfectDodgeTimer: number;
+  /** accumulator for regeneration */
+  regenTimer: number;
 }
 
 export type EnemyType = 'croissant' | 'angry_cup' | 'milk_blob' | 'drone';
+export type EnemyRole = 'heavy' | 'ranged' | 'fast' | 'special';
 export type BossType = 'grinder' | 'steam_king' | 'overflowing_pot' | 'secret_boss';
 
 export interface Enemy extends Entity {
@@ -35,7 +44,19 @@ export interface Enemy extends Entity {
   // Enemy abilities
   dashTimer?: number;
   abilityTimer?: number;
+  /** telegraph frames before a charge (heavy) */
+  windupTimer?: number;
+  /** frames of an active charge */
+  chargeTimer?: number;
+  /** orbit angle used by special enemies */
+  orbitAngle?: number;
+  /** white flash frames after being hit */
+  hitFlash?: number;
+  /** knockback velocity */
+  knockX?: number;
+  knockY?: number;
 }
+
 
 export interface Boss extends Entity {
   type: BossType;
