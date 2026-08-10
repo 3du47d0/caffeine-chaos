@@ -273,6 +273,14 @@ export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
   // Refresh cache since buffs changed
   state._cache = buildRunCache(state);
 
+  // Chest rewards resolve in place: no transition, no portal reshuffle.
+  if (state.phase === 'reward_room' && state.chestReward) {
+    state.chestReward = false;
+    state.phase = 'playing';
+    state.rewardChoices = [];
+    return state;
+  }
+
   // If in reward_room phase, return to playing — no transition needed since player never left
   if (state.phase === 'reward_room') {
     state.phase = 'playing';
@@ -1187,27 +1195,29 @@ export function update(state: GameState): GameState {
         const enemy = room.enemies[ei];
         if (enemy.hp <= 0) continue;
         if (dist(proj.pos, enemy.pos) < proj.size + enemy.size) {
-          enemy.hp -= proj.damage;
-          state.runStats.totalDamageDealt += proj.damage;
-          if (state.runBuffs.canela > 0 && Math.random() < 0.25) {
-            enemy.hp -= 5;
+          damageEnemy(state, enemy, proj.damage, !!proj.crit);
+          if (state.runBuffs.canela > 0 && Math.random() < Math.min(0.5, 0.12 * state.runBuffs.canela)) {
+            enemy.hp -= 5 * state.runBuffs.canela;
             spawnParticles(state, enemy.pos, '#FF6B35', 3);
           }
-          spawnParticles(state, proj.pos, '#6F4E37', 5);
-          if (enemy.hp <= 0) {
-            state.goldCollected += enemy.dropGold + cache.achieveBonuses.goldBonus;
-            state.runStats.enemiesKilled++;
-            spawnParticles(state, enemy.pos, '#FFD700', 12);
+          spawnParticles(state, proj.pos, '#6F4E37', proj.charged ? 10 : 5);
+          if (enemy.hp <= 0) onEnemyKilled(state, enemy);
+          if (!proj.isBurnZone) {
+            // Piercing shots continue through a limited number of enemies.
+            if (proj.pierce && proj.pierce > 0) {
+              proj.pierce--;
+            } else {
+              alive = false;
+              break;
+            }
           }
-          if (!proj.isBurnZone) { alive = false; break; }
         }
       }
       if (alive && room.boss && room.boss.hp > 0) {
         if (dist(proj.pos, room.boss.pos) < proj.size + room.boss.size) {
-          room.boss.hp -= proj.damage;
-          state.runStats.totalDamageDealt += proj.damage;
-          if (state.runBuffs.canela > 0 && Math.random() < 0.25) {
-            room.boss.hp -= 5;
+          damageBoss(state, room.boss, proj.damage, !!proj.crit);
+          if (state.runBuffs.canela > 0 && Math.random() < Math.min(0.5, 0.12 * state.runBuffs.canela)) {
+            room.boss.hp -= 5 * state.runBuffs.canela;
             spawnParticles(state, room.boss.pos, '#FF6B35', 3);
           }
           spawnParticles(state, proj.pos, '#6F4E37', 5);
@@ -1217,7 +1227,9 @@ export function update(state: GameState): GameState {
             spawnParticles(state, room.boss.pos, '#FFD700', 25, 6);
             state.screenShake = 10;
 
+            tryLore(state, 'cafeteria_3');
             if (room.boss.type === 'secret_boss') {
+              tryLore(state, 'verdade_3');
               state.secretBossDefeated = true;
               if (state.difficulty === 'hard') {
                 unlockImpossible();
@@ -1270,6 +1282,36 @@ export function update(state: GameState): GameState {
   }
   state.particles.length = writeIdx;
 
+  // Keep particle count inside the selected quality budget.
+  enforceParticleBudget(state);
+
+  // Floating combat text (pure UI, cheap to update)
+  writeIdx = 0;
+  for (let i = 0; i < state.damageNumbers.length; i++) {
+    const n = state.damageNumbers[i];
+    n.y += n.vy;
+    n.vy *= 0.94;
+    n.life--;
+    if (n.life > 0) state.damageNumbers[writeIdx++] = n;
+  }
+  state.damageNumbers.length = writeIdx;
+
+  // ---- Chests: opening one grants a 1-of-3 item choice ----
+  for (let ci = 0; ci < room.chests.length; ci++) {
+    const chest = room.chests[ci];
+    chest.bob += 0.06;
+    if (chest.opened) continue;
+    if (room.cleared && dist(player.pos, chest.pos) < player.size + 22) {
+      chest.opened = true;
+      state.chestReward = true;
+      state.rewardChoices = drawChestRewards(chest.kind, 3, state.runBuffs.sorte * 0.25);
+      state.phase = 'reward_room';
+      spawnParticles(state, chest.pos, chest.kind === 'golden' ? '#FFD700' : '#B5651D', 18, 4);
+      tryLore(state, 'frigorifico_2');
+      return state;
+    }
+  }
+
   // Remove dead enemies — in-place compaction
   writeIdx = 0;
   for (let i = 0; i < room.enemies.length; i++) {
@@ -1296,7 +1338,10 @@ export function update(state: GameState): GameState {
 
     if (state.roomDamageTaken === 0) {
       state.runStats.perfectRooms++;
+      tryLore(state, 'fornalha_2');
     }
+    if (state.runStats.roomsCleared >= 3) tryLore(state, 'cafeteria_1');
+    if (state.runStats.enemiesKilled >= 40) tryLore(state, 'cafeteria_2');
     state.roomDamageTaken = 0;
 
     if (roomTime < 600) {
@@ -1308,7 +1353,7 @@ export function update(state: GameState): GameState {
       if (room.isSecretBossRoom && state.secretBossDefeated) {
         state.phase = 'secret_victory';
       } else {
-        state.rewardChoices = drawRewards(3);
+        state.rewardChoices = drawRewards(3, state.runBuffs.sorte * 0.25);
         state.phase = 'reward';
       }
     } else {
@@ -1327,8 +1372,16 @@ export function update(state: GameState): GameState {
 
   // Pickup collision — in-place compaction
   writeIdx = 0;
+  const magnetRange = state.runBuffs.ima > 0 ? 60 + state.runBuffs.ima * 45 : 0;
   for (let i = 0; i < room.pickups.length; i++) {
     const pickup = room.pickups[i];
+    if (magnetRange > 0) {
+      const d = dist(player.pos, pickup.pos);
+      if (d < magnetRange && d > 0) {
+        pickup.pos.x += ((player.pos.x - pickup.pos.x) / d) * 3.2;
+        pickup.pos.y += ((player.pos.y - pickup.pos.y) / d) * 3.2;
+      }
+    }
     if (dist(player.pos, pickup.pos) < player.size + 12) {
       if (pickup.type === 'health') {
         player.hp = Math.min(player.maxHp, player.hp + pickup.value);
@@ -1445,6 +1498,8 @@ function enterRewardRoom(state: GameState) {
   state.rewardReturnRoom = state.currentRoom;
   state.rewardReturnFloor = state.floor;
   state.rewardChoices = drawHighRarityRewards(3);
+  state.chestReward = false;
+  tryLore(state, 'abismo_1');
   state.phase = 'reward_room';
 }
 
