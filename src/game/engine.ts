@@ -1026,30 +1026,91 @@ export function update(state: GameState): GameState {
     if (enemy.hp <= 0) continue;
     const config = ENEMY_CONFIGS[enemy.type];
     const isMiniBoss = enemy.isMiniBoss;
+    const role = config.role;
 
-    enemy.moveTimer--;
-    if (enemy.moveTimer <= 0) {
-      enemy.moveTimer = 40 + Math.random() * 40;
+    if (enemy.hitFlash && enemy.hitFlash > 0) enemy.hitFlash--;
+
+    const distToPlayer = dist(enemy.pos, player.pos);
+
+    // ---- Role-based behaviour ----
+    // Each archetype asks a different question of the player.
+    if (role === 'heavy') {
+      // Telegraphed charge: slow wind-up, then a fast committed dash.
+      enemy.windupTimer = enemy.windupTimer ?? 0;
+      enemy.chargeTimer = enemy.chargeTimer ?? 0;
+
+      if (enemy.chargeTimer > 0) {
+        enemy.chargeTimer--;
+        enemy.pos.x += (enemy.vel.x || 0);
+        enemy.pos.y += (enemy.vel.y || 0);
+      } else if (enemy.windupTimer > 0) {
+        enemy.windupTimer--;
+        if (enemy.windupTimer === 0) {
+          _tmpVec.x = player.pos.x - enemy.pos.x;
+          _tmpVec.y = player.pos.y - enemy.pos.y;
+          normalizeInto(_tmpVec, _tmpNorm);
+          enemy.vel.x = _tmpNorm.x * 5.5 * enemySpeedMult;
+          enemy.vel.y = _tmpNorm.y * 5.5 * enemySpeedMult;
+          enemy.chargeTimer = 22;
+          spawnParticles(state, enemy.pos, '#D4A03A', 6, 3);
+        }
+      } else {
+        enemy.moveTimer--;
+        if (distToPlayer < 260 && enemy.moveTimer <= 0) {
+          enemy.moveTimer = 130 + Math.random() * 60;
+          enemy.windupTimer = 34; // visible tell before the charge
+        }
+        _tmpVec.x = player.pos.x - enemy.pos.x;
+        _tmpVec.y = player.pos.y - enemy.pos.y;
+        normalizeInto(_tmpVec, _tmpNorm);
+        enemy.pos.x += _tmpNorm.x * config.speed * enemySpeedMult;
+        enemy.pos.y += _tmpNorm.y * config.speed * enemySpeedMult;
+      }
+    } else if (role === 'fast') {
+      // Erratic, quick approach with sidesteps.
+      enemy.moveTimer--;
+      if (enemy.moveTimer <= 0) {
+        enemy.moveTimer = 22 + Math.random() * 18;
+        _tmpVec.x = player.pos.x - enemy.pos.x;
+        _tmpVec.y = player.pos.y - enemy.pos.y;
+        normalizeInto(_tmpVec, _tmpNorm);
+        const strafe = (Math.random() - 0.5) * 1.6;
+        enemy.targetPos.x = enemy.pos.x + (_tmpNorm.x - _tmpNorm.y * strafe) * 120;
+        enemy.targetPos.y = enemy.pos.y + (_tmpNorm.y + _tmpNorm.x * strafe) * 120;
+      }
+      _tmpVec.x = enemy.targetPos.x - enemy.pos.x;
+      _tmpVec.y = enemy.targetPos.y - enemy.pos.y;
+      normalizeInto(_tmpVec, _tmpNorm);
+      enemy.pos.x += _tmpNorm.x * config.speed * enemySpeedMult;
+      enemy.pos.y += _tmpNorm.y * config.speed * enemySpeedMult;
+    } else if (role === 'ranged') {
+      // Keeps its preferred distance: backs off when crowded, closes when far.
+      const ideal = 210;
       _tmpVec.x = player.pos.x - enemy.pos.x;
       _tmpVec.y = player.pos.y - enemy.pos.y;
       normalizeInto(_tmpVec, _tmpNorm);
-
-      // Ability: Dash toward player
-      if (abilityChance > 0 && Math.random() < abilityChance * 0.3) {
-        enemy.pos.x += _tmpNorm.x * 60;
-        enemy.pos.y += _tmpNorm.y * 60;
-        spawnParticles(state, enemy.pos, '#FF4444', 4, 2);
-      } else {
-        enemy.targetPos.x = enemy.pos.x + _tmpNorm.x * 100 + (Math.random() - 0.5) * 80;
-        enemy.targetPos.y = enemy.pos.y + _tmpNorm.y * 100 + (Math.random() - 0.5) * 80;
-      }
+      let dir = 0;
+      if (distToPlayer > ideal + 40) dir = 1;
+      else if (distToPlayer < ideal - 40) dir = -1;
+      enemy.pos.x += _tmpNorm.x * config.speed * enemySpeedMult * dir;
+      enemy.pos.y += _tmpNorm.y * config.speed * enemySpeedMult * dir;
+      // Slow orbit so it is never a static target.
+      enemy.orbitAngle = (enemy.orbitAngle ?? 0) + 0.012;
+      enemy.pos.x += Math.cos(enemy.orbitAngle) * 0.7;
+      enemy.pos.y += Math.sin(enemy.orbitAngle) * 0.7;
+    } else {
+      // special (drone): orbits the player and punishes standing still.
+      enemy.orbitAngle = (enemy.orbitAngle ?? Math.random() * Math.PI * 2) + 0.03;
+      const radius = 150;
+      const tx = player.pos.x + Math.cos(enemy.orbitAngle) * radius;
+      const ty = player.pos.y + Math.sin(enemy.orbitAngle) * radius;
+      _tmpVec.x = tx - enemy.pos.x;
+      _tmpVec.y = ty - enemy.pos.y;
+      normalizeInto(_tmpVec, _tmpNorm);
+      enemy.pos.x += _tmpNorm.x * config.speed * enemySpeedMult;
+      enemy.pos.y += _tmpNorm.y * config.speed * enemySpeedMult;
     }
 
-    _tmpVec.x = enemy.targetPos.x - enemy.pos.x;
-    _tmpVec.y = enemy.targetPos.y - enemy.pos.y;
-    normalizeInto(_tmpVec, _tmpNorm);
-    enemy.pos.x += _tmpNorm.x * config.speed * enemySpeedMult;
-    enemy.pos.y += _tmpNorm.y * config.speed * enemySpeedMult;
     enemy.pos.x = clamp(enemy.pos.x, margin + enemy.size, CANVAS_WIDTH - margin - enemy.size);
     enemy.pos.y = clamp(enemy.pos.y, margin + enemy.size, CANVAS_HEIGHT - margin - enemy.size);
 
