@@ -73,6 +73,42 @@ function rectCollision(ax: number, ay: number, aw: number, ah: number, bx: numbe
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
+/** Floating combat text. Purely cosmetic — budgeted like particles. */
+function addDamageNumber(state: GameState, x: number, y: number, value: number, crit = false, heal = false) {
+  if (getPerfConfig(state.perfMode).particleMult < 0.5 && !crit && !heal) return;
+  if (state.damageNumbers.length > 40) state.damageNumbers.shift();
+  state.damageNumbers.push({
+    x: x + (Math.random() - 0.5) * 14,
+    y,
+    vy: -1.1,
+    life: 42,
+    maxLife: 42,
+    value: Math.round(value),
+    crit,
+    heal,
+  });
+}
+
+/** Registers a landed hit: feeds the combo meter and the screen feedback. */
+function registerHit(state: GameState, crit: boolean) {
+  state.comboCount++;
+  state.comboTimer = COMBO_WINDOW;
+  if (state.comboCount > state.bestCombo) state.bestCombo = state.comboCount;
+  if (crit) {
+    state.hitStop = Math.max(state.hitStop, 3);
+    state.screenShake = Math.max(state.screenShake, 3);
+  }
+}
+
+/** Discovers a lore fragment and queues it for the UI. */
+function tryLore(state: GameState, id: string) {
+  const found = discoverLore(id);
+  if (found) {
+    state.pendingLore = found.id;
+    state.loreFound.push(found.id);
+  }
+}
+
 function defaultRunStats(): RunStats {
   return {
     enemiesKilled: 0, damageTaken: 0, bossesDefeated: 0, roomsCleared: 0,
@@ -217,14 +253,18 @@ export function leaveShop(state: GameState): void {
 }
 
 export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
-  state.runBuffs[buff.id]++;
+  // Higher rarities stack more strongly than a plain +1.
+  const rarity = (buff as { rarity?: BuffRarity }).rarity ?? 'common';
+  const power = getBuffMultiplier(rarity);
+  state.runBuffs[buff.id] += power;
 
   switch (buff.id) {
-    case 'termo':
-      // +2 heart containers (40 HP)
-      state.player.maxHp += 40;
-      state.player.hp = Math.min(state.player.hp + 40, state.player.maxHp);
+    case 'termo': {
+      const hearts = Math.max(1, Math.round(power * 1.4));
+      state.player.maxHp += hearts * 20;
+      state.player.hp = Math.min(state.player.hp + hearts * 20, state.player.maxHp);
       break;
+    }
     case 'leite_aveia':
       state.player.shield = true;
       break;
@@ -559,18 +599,86 @@ function takeDamage(state: GameState, amount: number) {
     return;
   }
 
-  player.hp -= amount;
+  // Blindagem: flat damage reduction, capped so hits always matter.
+  const reduction = Math.min(0.55, state.runBuffs.blindagem * 0.07);
+  const final = Math.max(1, Math.round(amount * (1 - reduction)));
+
+  player.hp -= final;
   player.invincibleTimer = PLAYER_INVINCIBLE_AFTER_HIT;
   state.screenShake = 5;
   state.damageFlash = 6;
-  state.roomDamageTaken += amount;
-  state.runStats.damageTaken += amount;
+  state.hitStop = Math.max(state.hitStop, 2);
+  state.roomDamageTaken += final;
+  state.runStats.damageTaken += final;
+  // Taking a hit breaks the combo — rewards clean play.
+  state.comboCount = 0;
+  state.comboTimer = 0;
+  addDamageNumber(state, player.pos.x, player.pos.y - player.size, final);
   spawnParticles(state, player.pos, '#C0392B', 8);
+}
+
+/** Applies damage to an enemy with combat feedback (flash, numbers, combo). */
+function damageEnemy(state: GameState, enemy: Enemy, amount: number, crit = false) {
+  enemy.hp -= amount;
+  enemy.hitFlash = 6;
+  state.runStats.totalDamageDealt += amount;
+  addDamageNumber(state, enemy.pos.x, enemy.pos.y - enemy.size, amount, crit);
+  registerHit(state, crit);
+}
+
+function damageBoss(state: GameState, boss: Boss, amount: number, crit = false) {
+  boss.hp -= amount;
+  state.runStats.totalDamageDealt += amount;
+  addDamageNumber(state, boss.pos.x, boss.pos.y - boss.size, amount, crit);
+  registerHit(state, crit);
+}
+
+/** Lifesteal + kill feedback shared by every damage source. */
+function onEnemyKilled(state: GameState, enemy: Enemy) {
+  const cache = state._cache!;
+  const goldMult = 1 + state.runBuffs.sorte * 0.2;
+  state.goldCollected += Math.round((enemy.dropGold + cache.achieveBonuses.goldBonus) * goldMult);
+  state.runStats.enemiesKilled++;
+  spawnParticles(state, enemy.pos, '#FFD700', 12);
+
+  if (state.runBuffs.vampiro > 0 && state.player.hp < state.player.maxHp) {
+    const heal = Math.max(1, Math.round(state.runBuffs.vampiro * 1.5));
+    state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
+    addDamageNumber(state, state.player.pos.x, state.player.pos.y - state.player.size, heal, false, true);
+  }
 }
 
 function getDamageMult(state: GameState): number {
   const cache = state._cache!;
-  return (1 + state.upgrades.damageBonus * 0.1 + cache.achieveBonuses.damageBonus) * (1 + state.runBuffs.torrado * 0.2) * cache.charData.damageMult;
+  const player = state.player;
+
+  let mult = (1 + state.upgrades.damageBonus * 0.1 + cache.achieveBonuses.damageBonus)
+    * (1 + state.runBuffs.torrado * 0.15)
+    * cache.charData.damageMult;
+
+  // Combo: rewards uninterrupted aggression, capped so it never snowballs.
+  mult *= 1 + Math.min(COMBO_DAMAGE_CAP, state.comboCount * COMBO_DAMAGE_STEP);
+
+  // Adrenalina: stronger the closer to death.
+  if (state.runBuffs.adrenalina > 0) {
+    const hpRatio = player.hp / player.maxHp;
+    if (hpRatio < 0.4) mult *= 1 + state.runBuffs.adrenalina * 0.18 * (1 - hpRatio);
+  }
+
+  // Fantasma: brief damage window right after a dash.
+  if (player.dashBuffTimer > 0) mult *= 1 + state.runBuffs.fantasma * 0.18;
+
+  return mult;
+}
+
+function getCritChance(state: GameState): number {
+  return Math.min(0.6, BASE_CRIT_CHANCE + state.runBuffs.critico * 0.06);
+}
+
+/** Rolls a critical hit and returns the final damage plus the roll result. */
+function rollDamage(state: GameState, base: number): { damage: number; crit: boolean } {
+  const crit = Math.random() < getCritChance(state);
+  return { damage: crit ? base * CRIT_MULT : base, crit };
 }
 
 function getSpeedMult(state: GameState): number {
