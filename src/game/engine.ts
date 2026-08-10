@@ -128,7 +128,12 @@ export function createInitialState(
     facing: { x: 0, y: -1 },
     shootCooldown: 0,
     shield: false,
+    chargeTimer: 0,
+    dashBuffTimer: 0,
+    perfectDodgeTimer: 0,
+    regenTimer: 0,
   };
+
 
   const state: GameState = {
     phase: 'playing',
