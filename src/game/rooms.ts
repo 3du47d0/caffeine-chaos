@@ -1,7 +1,9 @@
-import { Room, Enemy, Pickup, Vec2, EnemyType, Wall, Boss, BossType } from './types';
+import { Room, Enemy, Pickup, Vec2, EnemyType, Wall, Boss, BossType, Chest } from './types';
 import { ROOM_WIDTH, ROOM_HEIGHT, ENEMY_CONFIGS } from './constants';
 import { DifficultyConfig } from './difficulty';
 import { getFloorTheme } from './floors';
+import { loadMeta, chestChanceBonus } from './meta';
+
 
 function rand(min: number, max: number): number {
   return Math.random() * (max - min) + min;
