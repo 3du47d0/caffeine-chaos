@@ -176,7 +176,17 @@ export function createInitialState(
     rewardPortal: null,
     rewardReturnRoom: 0,
     rewardReturnFloor: 0,
+    perfMode: loadPerfMode(),
+    damageNumbers: [],
+    comboCount: 0,
+    comboTimer: 0,
+    bestCombo: 0,
+    hitStop: 0,
+    pendingLore: null,
+    loreFound: [],
+    chestReward: false,
     _cache: null as any,
+
   };
 
   state._cache = buildRunCache(state);
