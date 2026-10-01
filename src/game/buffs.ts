@@ -1,5 +1,12 @@
 import { RunBuff, RunBuffId, BuffCategory, RunBuffs } from './types';
 import { loadMeta, unlockedItemTiers } from './meta';
+import { completedMissionIds, isItemUnlocked } from './missions';
+
+/** Items in the pool that the player has unlocked through missions. */
+function unlockedPool(): RunBuffWithRarity[] {
+  const done = completedMissionIds();
+  return RUN_BUFF_POOL.filter(b => isItemUnlocked(b.name, done));
+}
 
 export type BuffRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 
@@ -148,23 +155,24 @@ function drawFrom(pool: RunBuffWithRarity[], count: number, luck = 0, minRarity?
 
 /** Standard 1-of-3 reward after a boss. */
 export function drawRewards(count: number = 3, luck = 0): RunBuffWithRarity[] {
-  return drawFrom(RUN_BUFF_POOL, count, luck);
+  return drawFrom(unlockedPool(), count, luck);
 }
 
 /** Chest rewards — wooden chests skew common/rare, golden ones rare+ . */
 export function drawChestRewards(kind: 'wooden' | 'golden', count: number = 3, luck = 0): RunBuffWithRarity[] {
-  if (kind === 'golden') return drawFrom(RUN_BUFF_POOL, count, luck + 0.8, 'rare');
-  return drawFrom(RUN_BUFF_POOL, count, luck + 0.2);
+  if (kind === 'golden') return drawFrom(unlockedPool(), count, luck + 0.8, 'rare');
+  return drawFrom(unlockedPool(), count, luck + 0.2);
 }
 
 /** Only epic/legendary — used by the mysterious portal room. */
 export function drawHighRarityRewards(count: number = 3): RunBuffWithRarity[] {
   const tiers = unlockedItemTiers(loadMeta());
-  let highPool = RUN_BUFF_POOL.filter(b =>
+  const pool = unlockedPool();
+  let highPool = pool.filter(b =>
     (b.rarity === 'epic' && tiers.epic) || (b.rarity === 'legendary' && tiers.legendary),
   );
   if (highPool.length < count) {
-    highPool = RUN_BUFF_POOL.filter(b => b.rarity === 'rare' || highPool.includes(b));
+    highPool = pool.filter(b => b.rarity === 'rare' || highPool.includes(b));
   }
   const result: RunBuffWithRarity[] = [];
   const usedNames = new Set<string>();

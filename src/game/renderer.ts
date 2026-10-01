@@ -648,7 +648,7 @@ function drawMinimap(ctx: CanvasRenderingContext2D, state: GameState) {
     const ry = startY;
     const isBossRoom = state.rooms[i].isBossRoom;
     const isSecret = state.rooms[i].isSecretBossRoom;
-    const isShop = state.rooms[i].isShopRoom;
+    const isShop = state.rooms[i].isTreasureRoom;
     const color = i === state.currentRoom
       ? COLORS.player
       : state.rooms[i].cleared
@@ -658,7 +658,7 @@ function drawMinimap(ctx: CanvasRenderingContext2D, state: GameState) {
       : isBossRoom
       ? '#C0392B'
       : isShop
-      ? '#4CAF50'
+      ? '#D4A03A'
       : COLORS.doorLocked;
     drawPixelRect(ctx, rx, ry, roomSize, roomSize, color);
     if (isBossRoom) {
@@ -670,7 +670,7 @@ function drawMinimap(ctx: CanvasRenderingContext2D, state: GameState) {
       ctx.fillStyle = '#FFF';
       ctx.font = '8px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('$', rx + roomSize / 2, ry + roomSize - 2);
+      ctx.fillText('T', rx + roomSize / 2, ry + roomSize - 2);
     }
   }
 }
