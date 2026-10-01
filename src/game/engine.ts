@@ -7,7 +7,7 @@ import {
   PLAYER_SHOOT_COOLDOWN, PLAYER_DASH_COOLDOWN, PLAYER_DASH_DURATION,
   PLAYER_DASH_SPEED, PLAYER_ULTIMATE_COOLDOWN, PLAYER_INVINCIBLE_AFTER_HIT,
   BEAN_SPEED, BEAN_DAMAGE, BEAN_SIZE, ENEMY_CONFIGS, ROOMS_PER_FLOOR, TOTAL_FLOORS,
-  IN_RUN_SHOP_ITEMS, CHARGE_TIME, CHARGE_DAMAGE_MULT, CHARGE_MOVE_PENALTY,
+  CHARGE_TIME, CHARGE_DAMAGE_MULT, CHARGE_MOVE_PENALTY,
   COMBO_WINDOW, COMBO_DAMAGE_STEP, COMBO_DAMAGE_CAP, BASE_CRIT_CHANCE, CRIT_MULT,
 } from './constants';
 import { generateFloor } from './rooms';
@@ -114,6 +114,7 @@ function defaultRunStats(): RunStats {
     enemiesKilled: 0, damageTaken: 0, bossesDefeated: 0, roomsCleared: 0,
     goldCollected: 0, dashesUsed: 0, ultimatesUsed: 0, perfectRooms: 0,
     fastRooms: 0, totalDamageDealt: 0, perfectBoss: false, floorDamageTaken: 0, perfectFloor: false,
+    chestsOpened: 0, treasureRoomsFound: 0, healsUsed: 0, perfectBossKills: 0, lowHpBossKills: 0,
   };
 }
 
@@ -143,7 +144,7 @@ export function createInitialState(
 ): GameState {
   const diff = getDifficulty(difficultyId);
   const char = getCharacter(characterId);
-  const rooms = generateFloor(0, ROOMS_PER_FLOOR, diff);
+  const rooms = generateFloor(0, ROOMS_PER_FLOOR, diff, char.treasureBonus ?? 0);
   const achieveProgress = loadAchievementProgress();
   const bonuses = getAchievementBonuses(achieveProgress);
 
@@ -228,29 +229,6 @@ export function createInitialState(
   state._cache = buildRunCache(state);
   discoverLore('intro_1');
   return state;
-}
-
-export function buyInRunUpgrade(state: GameState, id: keyof Upgrades, cost: number): boolean {
-  if (state.goldCollected >= cost) {
-    state.goldCollected -= cost;
-    state.upgrades[id]++;
-    if (id === 'maxHpBonus') {
-      // +1 heart container (20 HP)
-      state.player.maxHp += 20;
-      state.player.hp = Math.min(state.player.hp + 20, state.player.maxHp);
-    }
-    // Refresh cache since upgrades changed
-    state._cache = buildRunCache(state);
-    return true;
-  }
-  return false;
-}
-
-export function leaveShop(state: GameState): void {
-  state.phase = 'playing';
-  const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
-  const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
-  state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
 }
 
 export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
@@ -610,7 +588,8 @@ function takeDamage(state: GameState, amount: number) {
 
   // Blindagem: flat damage reduction, capped so hits always matter.
   const reduction = Math.min(0.55, state.runBuffs.blindagem * 0.07);
-  const final = Math.max(1, Math.round(amount * (1 - reduction)));
+  const defense = state._cache?.charData.defenseMult ?? 1;
+  const final = Math.max(1, Math.round(amount * (1 - reduction) * defense));
 
   player.hp -= final;
   player.invincibleTimer = PLAYER_INVINCIBLE_AFTER_HIT;
@@ -711,8 +690,7 @@ export const RESTART_HOLD_FRAMES = 90; // 1.5s at 60fps
 const FIXED_DT = 1000 / 60;
 
 export function update(state: GameState): GameState {
-  if (state.phase !== 'playing' && state.phase !== 'shop' && state.phase !== 'reward_room') return state;
-  if (state.phase === 'shop') return state;
+  if (state.phase !== 'playing' && state.phase !== 'reward_room') return state;
   if (state.phase === 'reward_room') return state;
 
   // Rebuild cache if missing (e.g. after floor transition)
@@ -740,7 +718,7 @@ export function update(state: GameState): GameState {
       if (target.floor !== state.floor) {
         cleanupRoomData(state);
         state.floor = target.floor;
-        state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR, getDifficulty(state.difficulty as DifficultyId));
+        state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR, getDifficulty(state.difficulty as DifficultyId), state._cache?.charData.treasureBonus ?? 0);
         state.currentRoom = 0;
         state._cache = buildRunCache(state);
       } else {
@@ -807,11 +785,12 @@ export function update(state: GameState): GameState {
 
   state.isBossRoom = room.isBossRoom;
 
-  // Shop rooms trigger shop phase on enter (only once)
-  if (room.isShopRoom && state.phase === 'playing' && !room.shopVisited) {
-    room.shopVisited = true;
-    state.phase = 'shop';
-    return state;
+  // Treasure rooms: count the discovery once
+  if (room.isTreasureRoom && !room.treasureVisited) {
+    room.treasureVisited = true;
+    state.runStats.treasureRoomsFound++;
+    state.clearMessageTimer = 90;
+    spawnParticles(state, { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 - 60 }, '#FFD700', 16, 4);
   }
 
   let dx = 0, dy = 0;
@@ -1232,6 +1211,8 @@ export function update(state: GameState): GameState {
           if (room.boss.hp <= 0) {
             state.goldCollected += room.boss.dropGold;
             state.runStats.bossesDefeated++;
+            if (state.roomDamageTaken === 0) state.runStats.perfectBossKills++;
+            if (state.player.hp < state.player.maxHp * 0.25) state.runStats.lowHpBossKills++;
             spawnParticles(state, room.boss.pos, '#FFD700', 25, 6);
             state.screenShake = 10;
 
@@ -1311,6 +1292,7 @@ export function update(state: GameState): GameState {
     if (chest.opened) continue;
     if (room.cleared && dist(player.pos, chest.pos) < player.size + 22) {
       chest.opened = true;
+      state.runStats.chestsOpened++;
       state.chestReward = true;
       state.rewardChoices = drawChestRewards(chest.kind, 3, state.runBuffs.sorte * 0.25);
       state.phase = 'reward_room';
@@ -1392,7 +1374,9 @@ export function update(state: GameState): GameState {
     }
     if (dist(player.pos, pickup.pos) < player.size + 12) {
       if (pickup.type === 'health') {
-        player.hp = Math.min(player.maxHp, player.hp + pickup.value);
+        const healMult = state._cache?.charData.healMult ?? 1;
+        player.hp = Math.min(player.maxHp, player.hp + Math.round(pickup.value * healMult));
+        state.runStats.healsUsed++;
         spawnParticles(state, pickup.pos, '#90EE90', 8);
       } else {
         const value = Math.round(pickup.value * (1 + state.runBuffs.sorte * 0.2));
