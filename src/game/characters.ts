@@ -1,4 +1,7 @@
-export type CharacterId = 'barista' | 'french_press' | 'grao_torrado' | 'mocha' | 'supremo';
+import { isMissionComplete } from './missions';
+
+export type CharacterId = 'barista' | 'french_press' | 'grao_torrado' | 'mocha' | 'supremo'
+  | 'medico' | 'soldado' | 'explorador' | 'tanque';
 
 export interface CharacterUnlockCondition {
   description: string;
@@ -17,6 +20,14 @@ export interface GameCharacter {
   special: string;
   locked: boolean;
   unlockCondition?: CharacterUnlockCondition;
+  /** multiplier on incoming damage (lower = tankier) */
+  defenseMult?: number;
+  /** multiplier on healing pickups */
+  healMult?: number;
+  /** extra chance of Treasure Rooms (and a bonus chest inside) */
+  treasureBonus?: number;
+  bio?: string;
+  weakness?: string;
 }
 
 function getSaveData(): any {
@@ -102,6 +113,57 @@ export const CHARACTERS: GameCharacter[] = [
       description: 'Derrote o Boss Secreto na dificuldade Impossível',
       check: () => !!getSaveData().supremoUnlocked,
     },
+  },
+  {
+    id: 'medico',
+    name: 'A Médica',
+    description: 'Cura tudo, mas bate fraco.',
+    bio: 'Enfermeira do turno da noite. Sabe que o café ali não é só café.',
+    icon: '🩺',
+    hpMult: 1.0, speedMult: 1.0, damageMult: 0.8, shootCdMult: 1.0,
+    healMult: 1.8,
+    special: 'Itens de cura curam +80%',
+    weakness: '-20% de dano',
+    locked: true,
+    unlockCondition: { description: 'Missão: Use 20 itens de cura', check: () => isMissionComplete('m_heal_20') },
+  },
+  {
+    id: 'soldado',
+    name: 'O Segurança',
+    description: 'Tiros pesados, passos pesados.',
+    bio: 'Vigia da fábrica há 20 anos. Nunca saiu antes das 4:01.',
+    icon: '🪖',
+    hpMult: 1.1, speedMult: 0.82, damageMult: 1.35, shootCdMult: 1.05,
+    special: '+35% de dano nos disparos',
+    weakness: '-18% de velocidade',
+    locked: true,
+    unlockCondition: { description: 'Missão: Derrote 3 chefes', check: () => isMissionComplete('m_boss_3') },
+  },
+  {
+    id: 'explorador',
+    name: 'A Entregadora',
+    description: 'Rápida e faro para tesouros.',
+    bio: 'Conhece cada corredor do porão. Ninguém sabe como ela entrou.',
+    icon: '🧭',
+    hpMult: 0.7, speedMult: 1.25, damageMult: 1.0, shootCdMult: 1.0,
+    treasureBonus: 0.25,
+    special: '+25% velocidade, mais Salas de Tesouro e baú extra nelas',
+    weakness: '-30% de vida',
+    locked: true,
+    unlockCondition: { description: 'Missão: Encontre 5 Salas de Tesouro', check: () => isMissionComplete('m_treasure_5') },
+  },
+  {
+    id: 'tanque',
+    name: 'O Galão',
+    description: 'Aguenta pancada, demora a chegar.',
+    bio: 'Um galão de 20 litros que ganhou vida. Pesado demais para fugir.',
+    icon: '🛢️',
+    hpMult: 1.2, speedMult: 0.75, damageMult: 1.0, shootCdMult: 1.1,
+    defenseMult: 0.6,
+    special: 'Recebe 40% menos dano',
+    weakness: '-25% de velocidade',
+    locked: true,
+    unlockCondition: { description: 'Missão: Absorva 1500 de dano no total', check: () => isMissionComplete('m_damage_taken') },
   },
 ];
 
