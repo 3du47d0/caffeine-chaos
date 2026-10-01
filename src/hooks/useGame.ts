@@ -1,6 +1,8 @@
+import { toast } from 'sonner';
+import { MISSIONS, completedMissionIds } from '../game/missions';
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { GameState, Upgrades, RunBuff, RoomTime, Achievement } from '../game/types';
-import { createInitialState, update, applyRunBuff, buyInRunUpgrade, leaveShop } from '../game/engine';
+import { createInitialState, update, applyRunBuff } from '../game/engine';
 import { render } from '../game/renderer';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../game/constants';
 import { InputManager, getPerformanceTier, getParticleMultiplier } from '../game/input';
@@ -42,7 +44,18 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   /** Records permanent (meta) progression at the end of a run. */
   const recordMeta = useCallback((state: GameState) => {
     const meta = loadMeta();
+    const before = completedMissionIds(meta);
+    const rs = state.runStats;
     meta.runs += 1;
+    meta.chestsOpened += rs.chestsOpened;
+    meta.treasureRooms += rs.treasureRoomsFound;
+    meta.perfectBosses += rs.perfectBossKills;
+    meta.lowHpBossKills += rs.lowHpBossKills;
+    meta.perfectRooms += rs.perfectRooms;
+    meta.healsUsed += rs.healsUsed;
+    meta.totalDamageTaken += rs.damageTaken;
+    meta.bestCombo = Math.max(meta.bestCombo, state.bestCombo);
+    if (state.phase === 'victory' || state.phase === 'secret_victory') meta.victories += 1;
     meta.totalKills += state.runStats.enemiesKilled;
     meta.totalBosses += state.runStats.bossesDefeated;
     meta.deepestFloor = Math.max(meta.deepestFloor, state.floor);
@@ -52,6 +65,12 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       }
     }
     saveMeta(meta);
+    const after = completedMissionIds(meta);
+    for (const m of MISSIONS) {
+      if (after.has(m.id) && !before.has(m.id)) {
+        toast.success(`MISSÃO CONCLUÍDA: ${m.title}`, { description: `Recompensa: ${m.reward.label}` });
+      }
+    }
     discoverLore('intro_2');
     if (meta.runs >= 3) discoverLore('verdade_1');
     if (state.phase === 'victory' || state.phase === 'secret_victory') discoverLore('verdade_2');
@@ -212,25 +231,6 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     } catch {}
   }, []);
 
-  const shopBuy = useCallback((id: keyof Upgrades, cost: number): boolean => {
-    const state = stateRef.current;
-    if (!state) return false;
-    const result = buyInRunUpgrade(state, id, cost);
-    if (result) {
-      setRunGold(state.goldCollected);
-      setHp(state.player.hp);
-      setMaxHp(state.player.maxHp);
-    }
-    return result;
-  }, []);
-
-  const shopLeave = useCallback(() => {
-    const state = stateRef.current;
-    if (!state) return;
-    leaveShop(state);
-    setPhase('playing');
-  }, []);
-
   const toggleMusic = useCallback(() => {
     return musicManager.toggleMute();
   }, [musicManager]);
@@ -336,7 +336,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         wasBossRoom = !!isNowBoss;
       }
 
-      if (state && (state.phase === 'reward' || state.phase === 'shop' || state.phase === 'reward_room')) {
+      if (state && (state.phase === 'reward' || state.phase === 'reward_room')) {
         render(ctx, state);
       }
 
@@ -400,7 +400,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
     runTimer, roomTimes, inputManager, isBossRoom,
     startRun, returnToLobby, chooseBuff, toggleMusic,
-    shopBuy, shopLeave, hardReset,
+    hardReset,
     perfMode, setPerfMode, optimizeGame,
     upgrades: upgradesRef.current,
     unlockedAchievement, clearAchievementNotification: () => setUnlockedAchievement(null),
