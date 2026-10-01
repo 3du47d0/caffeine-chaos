@@ -137,8 +137,8 @@ export interface Room {
   walls: Wall[];
   isBossRoom: boolean;
   isSecretBossRoom?: boolean;
-  isShopRoom?: boolean;
-  shopVisited?: boolean;
+  isTreasureRoom?: boolean;
+  treasureVisited?: boolean;
   isRewardRoom?: boolean;
 }
 
@@ -252,10 +252,15 @@ export interface RunStats {
   perfectBoss: boolean;
   floorDamageTaken: number;
   perfectFloor: boolean;
+  chestsOpened: number;
+  treasureRoomsFound: number;
+  healsUsed: number;
+  perfectBossKills: number;
+  lowHpBossKills: number;
 }
 
 export interface GameState {
-  phase: 'lobby' | 'playing' | 'reward' | 'gameover' | 'victory' | 'secret_victory' | 'shop' | 'reward_room';
+  phase: 'lobby' | 'playing' | 'reward' | 'gameover' | 'victory' | 'secret_victory' | 'reward_room';
   player: Player;
   rooms: Room[];
   currentRoom: number;

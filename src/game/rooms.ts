@@ -185,14 +185,18 @@ function getEnemyPool(floor: number): EnemyType[] {
   }
 }
 
-export function generateFloor(floor: number, numRooms: number, diff?: DifficultyConfig): Room[] {
+/** base chance per floor of spawning a Treasure Room */
+export const TREASURE_ROOM_CHANCE = 0.75;
+
+export function generateFloor(floor: number, numRooms: number, diff?: DifficultyConfig, treasureBonus = 0): Room[] {
   const rooms: Room[] = [];
   const enemyPool = getEnemyPool(floor);
   const margin = 70;
   const countMult = diff?.enemyCountMult ?? 1;
 
-  // Insert a shop room at room index 2 (3rd room) if there are enough rooms
-  const shopRoomIndex = numRooms > 3 ? 2 : -1;
+  // Treasure room: a quiet room holding a guaranteed chest (replaces the old shop).
+  const shopRoomIndex = numRooms > 3 && Math.random() < TREASURE_ROOM_CHANCE + treasureBonus
+    ? randInt(1, numRooms - 2) : -1;
 
   for (let i = 0; i < numRooms; i++) {
     const isBoss = i === numRooms - 1;
@@ -251,7 +255,12 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
 
     // ---- Chests: reward exploration in normal rooms ----
     const chests: Chest[] = [];
-    if (!isShop && !isBoss && i > 0) {
+    if (isShop) {
+      chests.push({ pos: { x: ROOM_WIDTH / 2, y: ROOM_HEIGHT / 2 - 60 }, kind: 'golden', opened: false, bob: 0 });
+      if (treasureBonus > 0) {
+        chests.push({ pos: { x: ROOM_WIDTH / 2 + 90, y: ROOM_HEIGHT / 2 - 40 }, kind: 'wooden', opened: false, bob: 1 });
+      }
+    } else if (!isBoss && i > 0) {
       const bonus = chestChanceBonus(loadMeta());
       if (Math.random() < 0.22 + bonus) {
         const golden = Math.random() < 0.18 + floor * 0.05;
@@ -281,11 +290,11 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
       boss: isBoss ? createBoss(floor, diff) : null,
       pickups,
       chests,
-      cleared: isShop, // shop rooms are pre-cleared
+      cleared: isShop, // treasure rooms are pre-cleared
       doors,
       walls: (i === 0 || isShop) ? [] : generateWalls(i, floor),
       isBossRoom: isBoss,
-      isShopRoom: isShop,
+      isTreasureRoom: isShop,
     });
 
   }

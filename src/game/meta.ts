@@ -10,12 +10,27 @@ export interface MetaProgress {
   totalKills: number;
   totalBosses: number;
   bestRunFrames: number;
+  chestsOpened: number;
+  treasureRooms: number;
+  perfectBosses: number;
+  bestCombo: number;
+  perfectRooms: number;
+  healsUsed: number;
+  lowHpBossKills: number;
+  totalDamageTaken: number;
+  victories: number;
+  coopRuns2: number;
+  coopRuns3: number;
+  revives: number;
 }
 
 const META_KEY = 'cafe_chaos_meta';
 
 const EMPTY: MetaProgress = {
   runs: 0, deepestFloor: 0, totalKills: 0, totalBosses: 0, bestRunFrames: 0,
+  chestsOpened: 0, treasureRooms: 0, perfectBosses: 0, bestCombo: 0, perfectRooms: 0,
+  healsUsed: 0, lowHpBossKills: 0, totalDamageTaken: 0, victories: 0,
+  coopRuns2: 0, coopRuns3: 0, revives: 0,
 };
 
 export function loadMeta(): MetaProgress {
