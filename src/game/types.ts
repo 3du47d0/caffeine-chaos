@@ -318,6 +318,15 @@ export interface GameState {
   /** true while a chest reward is being chosen */
   chestReward: boolean;
 
+  // ---- Co-op ----
+  allies: import('./coop').CoopAlly[];
+  coopPlayers: number;
+  hostDowned: boolean;
+  hostReviveProgress: number;
+  hostRevives: number;
+  coopLastRoom: number;
+  coopLastFloor: number;
+
   // Cached per-run computations to avoid per-frame GC
   _cache: any;
 }
