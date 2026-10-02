@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CHARACTERS, isCharacterUnlocked, CharacterId } from '../../game/characters';
 import { DIFFICULTIES, isDifficultyUnlocked, DifficultyId } from '../../game/difficulty';
 import AchievementsScreen from './AchievementsScreen';
+import MissionsPanel from './MissionsPanel';
 
 interface LobbyProps {
   gold: number;
@@ -17,7 +18,7 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
   const [showAchievements, setShowAchievements] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>('medium');
   const [selectedCharacter, setSelectedCharacter] = useState<CharacterId>('barista');
-  const [tab, setTab] = useState<'main' | 'characters'>('main');
+  const [tab, setTab] = useState<'main' | 'characters' | 'missions'>('main');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const visibleDifficulties = DIFFICULTIES.filter(d => !d.hidden || isDifficultyUnlocked(d.id));
@@ -42,7 +43,7 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
         </div>
 
         {/* Tab buttons */}
-        <div className="flex justify-center gap-2 mb-4">
+        <div className="flex flex-wrap justify-center gap-2 mb-4">
           <button
             onClick={() => setTab('main')}
             className={`font-pixel text-xs px-4 py-2 rounded-lg pixel-border transition-all ${
@@ -58,6 +59,14 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
             }`}
           >
             👤 PERSONAGENS
+          </button>
+          <button
+            onClick={() => setTab('missions')}
+            className={`font-pixel text-xs px-4 py-2 rounded-lg pixel-border transition-all ${
+              tab === 'missions' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
+            }`}
+          >
+            📜 MISSÕES
           </button>
         </div>
 
@@ -131,6 +140,8 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
           </>
         )}
 
+        {tab === 'missions' && <MissionsPanel />}
+
         {tab === 'characters' && (
           <div className="pixel-border rounded-lg p-3 sm:p-4 mb-4 bg-card">
             <h2 className="font-pixel text-xs sm:text-sm text-primary mb-3">PERSONAGENS</h2>
@@ -157,6 +168,15 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
                       <div className="font-pixel text-foreground/60" style={{ fontSize: '8px' }}>
                         {unlocked ? char.description : (char.unlockCondition?.description || 'Desbloqueie completando desafios')}
                       </div>
+                      {unlocked && char.bio && (
+                        <div className="font-pixel text-foreground/40 italic mt-1" style={{ fontSize: '7px' }}>{char.bio}</div>
+                      )}
+                      {unlocked && (char.weakness || char.special) && (
+                        <div className="flex flex-wrap gap-x-2 mt-1 font-pixel" style={{ fontSize: '7px' }}>
+                          <span className="text-primary">✦ {char.special}</span>
+                          {char.weakness && <span className="text-destructive">✖ {char.weakness}</span>}
+                        </div>
+                      )}
                       {unlocked && (
                         <div className="flex gap-2 mt-1 font-pixel text-foreground/40" style={{ fontSize: '7px' }}>
                           <span>HP: {Math.round(char.hpMult * 100)}%</span>
