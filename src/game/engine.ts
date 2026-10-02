@@ -789,6 +789,10 @@ export function update(state: GameState): GameState {
   if (room.isTreasureRoom && !room.treasureVisited) {
     room.treasureVisited = true;
     state.runStats.treasureRoomsFound++;
+    // Treasure rooms start cleared, so spawn the exit portal here (below the chests).
+    if (!state.exitPortal?.active) {
+      state.exitPortal = { pos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 + 110 }, active: true };
+    }
     state.clearMessageTimer = 90;
     spawnParticles(state, { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 - 60 }, '#FFD700', 16, 4);
   }
