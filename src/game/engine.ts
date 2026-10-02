@@ -11,6 +11,7 @@ import {
   COMBO_WINDOW, COMBO_DAMAGE_STEP, COMBO_DAMAGE_CAP, BASE_CRIT_CHANCE, CRIT_MULT,
 } from './constants';
 import { generateFloor } from './rooms';
+import { scaleDifficulty, updateAllies, anyAllyAlive } from './coop';
 import {
   defaultRunBuffs, drawRewards, drawHighRarityRewards, drawChestRewards,
   getBuffMultiplier, BuffRarity,
@@ -132,7 +133,7 @@ function buildRunCache(state: GameState): RunCache {
   return {
     achieveBonuses: getAchievementBonuses(progress),
     charData: getCharacter(state.characterId as CharacterId),
-    diffData: getDifficulty(state.difficulty as DifficultyId),
+    diffData: scaleDifficulty(getDifficulty(state.difficulty as DifficultyId), state.coopPlayers || 1),
     floorTheme: getFloorTheme(state.floor),
   };
 }
@@ -141,8 +142,9 @@ export function createInitialState(
   upgrades: Upgrades,
   difficultyId: DifficultyId = 'medium',
   characterId: CharacterId = 'barista',
+  playerCount = 1,
 ): GameState {
-  const diff = getDifficulty(difficultyId);
+  const diff = scaleDifficulty(getDifficulty(difficultyId), playerCount);
   const char = getCharacter(characterId);
   const rooms = generateFloor(0, ROOMS_PER_FLOOR, diff, char.treasureBonus ?? 0);
   const achieveProgress = loadAchievementProgress();
@@ -222,6 +224,13 @@ export function createInitialState(
     pendingLore: null,
     loreFound: [],
     chestReward: false,
+    allies: [],
+    coopPlayers: playerCount,
+    hostDowned: false,
+    hostReviveProgress: 0,
+    hostRevives: 0,
+    coopLastRoom: 0,
+    coopLastFloor: 0,
     _cache: null as any,
 
   };
@@ -718,7 +727,7 @@ export function update(state: GameState): GameState {
       if (target.floor !== state.floor) {
         cleanupRoomData(state);
         state.floor = target.floor;
-        state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR, getDifficulty(state.difficulty as DifficultyId), state._cache?.charData.treasureBonus ?? 0);
+        state.rooms = generateFloor(state.floor, ROOMS_PER_FLOOR, scaleDifficulty(getDifficulty(state.difficulty as DifficultyId), state.coopPlayers || 1), state._cache?.charData.treasureBonus ?? 0);
         state.currentRoom = 0;
         state._cache = buildRunCache(state);
       } else {
@@ -789,6 +798,10 @@ export function update(state: GameState): GameState {
   if (room.isTreasureRoom && !room.treasureVisited) {
     room.treasureVisited = true;
     state.runStats.treasureRoomsFound++;
+    // Treasure rooms start cleared, so spawn the exit portal here (below the chests).
+    if (!state.exitPortal?.active) {
+      state.exitPortal = { pos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 + 110 }, active: true };
+    }
     state.clearMessageTimer = 90;
     spawnParticles(state, { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 - 60 }, '#FFD700', 16, 4);
   }
@@ -1446,10 +1459,22 @@ export function update(state: GameState): GameState {
     }
   }
 
-  // Player death
-  if (player.hp <= 0) {
-    state.phase = 'gameover';
-    spawnParticles(state, player.pos, '#C0392B', 20, 5);
+  updateAllies(state);
+
+  // Player death (in co-op the host is downed while any ally still stands)
+  if (player.hp <= 0 || state.hostDowned) {
+    if (state.allies.length > 0 && anyAllyAlive(state)) {
+      if (!state.hostDowned) {
+        state.hostDowned = true;
+        state.hostReviveProgress = 0;
+        player.hp = 0;
+        spawnParticles(state, player.pos, '#C0392B', 12, 4);
+      }
+    } else {
+      player.hp = 0;
+      state.phase = 'gameover';
+      spawnParticles(state, player.pos, '#C0392B', 20, 5);
+    }
   }
 
   return state;
