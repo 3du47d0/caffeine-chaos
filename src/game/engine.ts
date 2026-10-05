@@ -1600,6 +1600,7 @@ function enterSecretBossRoom(state: GameState) {
       walls: hazardWalls,
       isBossRoom: false,
       isSecretBossRoom: true,
+      gridX: 0, gridY: -i, visited: i === 0,
     });
   }
 
@@ -1628,6 +1629,7 @@ function enterSecretBossRoom(state: GameState) {
     walls: [],
     isBossRoom: true,
     isSecretBossRoom: true,
+    gridX: 0, gridY: -4, visited: false,
   });
 
   tryLore(state, 'abismo_2');
