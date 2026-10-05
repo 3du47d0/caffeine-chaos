@@ -203,10 +203,10 @@ export function doorPos(dir: Dir): Vec2 {
 /** Spawn point just inside the door on the given side. */
 export function spawnNearDoor(side: Dir): Vec2 {
   switch (side) {
-    case 'north': return { x: ROOM_WIDTH / 2, y: 80 };
-    case 'south': return { x: ROOM_WIDTH / 2, y: ROOM_HEIGHT - 80 };
-    case 'west': return { x: 80, y: ROOM_HEIGHT / 2 };
-    default: return { x: ROOM_WIDTH - 80, y: ROOM_HEIGHT / 2 };
+    case 'north': return { x: ROOM_WIDTH / 2, y: 100 };
+    case 'south': return { x: ROOM_WIDTH / 2, y: ROOM_HEIGHT - 100 };
+    case 'west': return { x: 100, y: ROOM_HEIGHT / 2 };
+    default: return { x: ROOM_WIDTH - 100, y: ROOM_HEIGHT / 2 };
   }
 }
 
