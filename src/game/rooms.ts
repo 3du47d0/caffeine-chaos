@@ -1,4 +1,4 @@
-import { Room, Enemy, Pickup, Vec2, EnemyType, Wall, Boss, BossType, Chest } from './types';
+import { Door, Room, Enemy, Pickup, Vec2, EnemyType, Wall, Boss, BossType, Chest } from './types';
 import { ROOM_WIDTH, ROOM_HEIGHT, ENEMY_CONFIGS } from './constants';
 import { DifficultyConfig } from './difficulty';
 import { getFloorTheme } from './floors';
@@ -185,6 +185,63 @@ function getEnemyPool(floor: number): EnemyType[] {
   }
 }
 
+type Dir = Door['direction'];
+const DIRS: { name: Dir; dx: number; dy: number }[] = [
+  { name: 'north', dx: 0, dy: -1 }, { name: 'south', dx: 0, dy: 1 },
+  { name: 'west', dx: -1, dy: 0 }, { name: 'east', dx: 1, dy: 0 },
+];
+
+export function doorPos(dir: Dir): Vec2 {
+  switch (dir) {
+    case 'north': return { x: ROOM_WIDTH / 2, y: 15 };
+    case 'south': return { x: ROOM_WIDTH / 2, y: ROOM_HEIGHT - 15 };
+    case 'west': return { x: 15, y: ROOM_HEIGHT / 2 };
+    default: return { x: ROOM_WIDTH - 15, y: ROOM_HEIGHT / 2 };
+  }
+}
+
+/** Spawn point just inside the door on the given side. */
+export function spawnNearDoor(side: Dir): Vec2 {
+  switch (side) {
+    case 'north': return { x: ROOM_WIDTH / 2, y: 100 };
+    case 'south': return { x: ROOM_WIDTH / 2, y: ROOM_HEIGHT - 100 };
+    case 'west': return { x: 100, y: ROOM_HEIGHT / 2 };
+    default: return { x: ROOM_WIDTH - 100, y: ROOM_HEIGHT / 2 };
+  }
+}
+
+export const OPPOSITE: Record<Dir, Dir> = { north: 'south', south: 'north', west: 'east', east: 'west' };
+
+/**
+ * Compact random blob of rooms on a grid (favours cells with many neighbours,
+ * so most rooms get 3-4 doors). Returned order: start first, boss (farthest) last.
+ */
+function buildLayout(n: number): { x: number; y: number }[] {
+  const cells = [{ x: 0, y: 0 }];
+  const has = (x: number, y: number) => cells.some(c => c.x === x && c.y === y);
+  let guard = 0;
+  while (cells.length < n && guard++ < 500) {
+    const base = cells[randInt(0, cells.length - 1)];
+    const d = DIRS[randInt(0, 3)];
+    const nx = base.x + d.dx, ny = base.y + d.dy;
+    if (has(nx, ny) || Math.abs(nx) > 2 || Math.abs(ny) > 2) continue;
+    cells.push({ x: nx, y: ny });
+  }
+  // BFS distance from start; farthest cell becomes the boss room.
+  const dist = new Map<string, number>([['0,0', 0]]);
+  const q = [cells[0]];
+  while (q.length) {
+    const c = q.shift()!;
+    for (const d of DIRS) {
+      const k = `${c.x + d.dx},${c.y + d.dy}`;
+      if (has(c.x + d.dx, c.y + d.dy) && !dist.has(k)) { dist.set(k, dist.get(`${c.x},${c.y}`)! + 1); q.push({ x: c.x + d.dx, y: c.y + d.dy }); }
+    }
+  }
+  const rest = cells.slice(1);
+  rest.sort((a, b) => dist.get(`${a.x},${a.y}`)! - dist.get(`${b.x},${b.y}`)!);
+  return [cells[0], ...rest];
+}
+
 /** base chance per floor of spawning a Treasure Room */
 export const TREASURE_ROOM_CHANCE = 0.75;
 
@@ -194,6 +251,8 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
   const margin = 70;
   const countMult = diff?.enemyCountMult ?? 1;
 
+  // Grid layout: index 0 = start, last index = boss (farthest from start).
+  const cells = buildLayout(numRooms);
   // Treasure room: a quiet room holding a guaranteed chest (replaces the old shop).
   const shopRoomIndex = numRooms > 3 && Math.random() < TREASURE_ROOM_CHANCE + treasureBonus
     ? randInt(1, numRooms - 2) : -1;
@@ -273,12 +332,11 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
       }
     }
 
-    const doors: { pos: Vec2; direction: 'north' | 'south' | 'east' | 'west'; leadsTo: number }[] = [];
-    if (i < numRooms - 1) {
-      doors.push({ pos: { x: ROOM_WIDTH / 2, y: 15 }, direction: 'north', leadsTo: i + 1 });
-    }
-    if (i > 0) {
-      doors.push({ pos: { x: ROOM_WIDTH / 2, y: ROOM_HEIGHT - 15 }, direction: 'south', leadsTo: i - 1 });
+    const doors: Door[] = [];
+    const c = cells[i];
+    for (const dir of DIRS) {
+      const j = cells.findIndex(o => o.x === c.x + dir.dx && o.y === c.y + dir.dy);
+      if (j >= 0) doors.push({ pos: doorPos(dir.name), direction: dir.name, leadsTo: j });
     }
 
     rooms.push({
@@ -295,6 +353,9 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
       walls: (i === 0 || isShop) ? [] : generateWalls(i, floor),
       isBossRoom: isBoss,
       isTreasureRoom: isShop,
+      gridX: c.x,
+      gridY: c.y,
+      visited: i === 0,
     });
 
   }

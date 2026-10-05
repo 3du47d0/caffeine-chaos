@@ -97,7 +97,9 @@ function drawDoors(ctx: CanvasRenderingContext2D, room: Room) {
   for (const door of room.doors) {
     const color = room.cleared ? COLORS.door : COLORS.doorLocked;
     const s = 20;
-    drawPixelRect(ctx, door.pos.x - s, door.pos.y - s / 2, s * 2, s, color);
+    const vertical = door.direction === 'east' || door.direction === 'west';
+    if (vertical) drawPixelRect(ctx, door.pos.x - s / 2, door.pos.y - s, s, s * 2, color);
+    else drawPixelRect(ctx, door.pos.x - s, door.pos.y - s / 2, s * 2, s, color);
     if (room.cleared) {
       ctx.fillStyle = '#FFF';
       ctx.font = '16px sans-serif';
@@ -626,13 +628,11 @@ function drawParticles(ctx: CanvasRenderingContext2D, particles: Particle[]) {
   ctx.globalAlpha = 1;
 }
 
+/** Explored-rooms map: only shape + connections, nothing about contents. */
 function drawMinimap(ctx: CanvasRenderingContext2D, state: GameState) {
-  const mmX = CANVAS_WIDTH - 110;
-  const mmY = 10;
-  const mmW = 100;
-  const mmH = 60;
-  const roomSize = 12;
-  const gap = 2;
+  const cell = 14, gap = 6, step = cell + gap;
+  const mmW = 5 * step + 10, mmH = 5 * step + 10;
+  const mmX = CANVAS_WIDTH - mmW - 10, mmY = 10;
 
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect(mmX, mmY, mmW, mmH);
@@ -640,38 +640,37 @@ function drawMinimap(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.lineWidth = 1;
   ctx.strokeRect(mmX, mmY, mmW, mmH);
 
-  const startX = mmX + 10;
-  const startY = mmY + (mmH - roomSize) / 2;
+  const gx = (i: number) => state.rooms[i].gridX ?? 0;
+  const gy = (i: number) => state.rooms[i].gridY ?? -i;
+  // Center the map on the current room so larger layouts stay in view.
+  const cx = gx(state.currentRoom), cy = gy(state.currentRoom);
+  const ox = mmX + mmW / 2 - cell / 2, oy = mmY + mmH / 2 - cell / 2;
+  const px = (i: number) => ox + (gx(i) - cx) * step;
+  const py = (i: number) => oy + (gy(i) - cy) * step;
+  const inside = (x: number, y: number) => x >= mmX + 2 && y >= mmY + 2 && x + cell <= mmX + mmW - 2 && y + cell <= mmY + mmH - 2;
 
+  // Connections between explored rooms
+  ctx.strokeStyle = COLORS.door;
+  ctx.lineWidth = 2;
   for (let i = 0; i < state.rooms.length; i++) {
-    const rx = startX + i * (roomSize + gap);
-    const ry = startY;
-    const isBossRoom = state.rooms[i].isBossRoom;
-    const isSecret = state.rooms[i].isSecretBossRoom;
-    const isShop = state.rooms[i].isTreasureRoom;
-    const color = i === state.currentRoom
-      ? COLORS.player
-      : state.rooms[i].cleared
-      ? COLORS.door
-      : isSecret
-      ? '#8B00FF'
-      : isBossRoom
-      ? '#C0392B'
-      : isShop
-      ? '#D4A03A'
-      : COLORS.doorLocked;
-    drawPixelRect(ctx, rx, ry, roomSize, roomSize, color);
-    if (isBossRoom) {
-      ctx.fillStyle = '#FFF';
-      ctx.font = '8px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(isSecret ? '★' : '!', rx + roomSize / 2, ry + roomSize - 2);
-    } else if (isShop) {
-      ctx.fillStyle = '#FFF';
-      ctx.font = '8px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('T', rx + roomSize / 2, ry + roomSize - 2);
+    const r = state.rooms[i];
+    if (!r.visited) continue;
+    for (const d of r.doors) {
+      if (d.leadsTo <= i || !state.rooms[d.leadsTo]?.visited) continue;
+      const x1 = px(i), y1 = py(i), x2 = px(d.leadsTo), y2 = py(d.leadsTo);
+      if (!inside(x1, y1) || !inside(x2, y2)) continue;
+      ctx.beginPath();
+      ctx.moveTo(x1 + cell / 2, y1 + cell / 2);
+      ctx.lineTo(x2 + cell / 2, y2 + cell / 2);
+      ctx.stroke();
     }
+  }
+  // Explored rooms
+  for (let i = 0; i < state.rooms.length; i++) {
+    if (!state.rooms[i].visited) continue;
+    const x = px(i), y = py(i);
+    if (!inside(x, y)) continue;
+    drawPixelRect(ctx, x, y, cell, cell, i === state.currentRoom ? COLORS.player : '#6B5444');
   }
 }
 
@@ -994,7 +993,7 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.fillStyle = '#FFF';
   ctx.font = '12px "Press Start 2P", monospace';
   ctx.textAlign = 'left';
-  ctx.fillText(`Sala ${state.currentRoom + 1}/${state.rooms.length}`, 50, 25);
+  ctx.fillText(`Andar ${Math.min(state.floor + 1, 4)}`, 50, 25);
   ctx.fillText(`${theme.label}`, 50, 42);
 
   drawClearMessage(ctx, state);

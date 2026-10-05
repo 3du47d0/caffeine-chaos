@@ -180,6 +180,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     state.perfMode = perfMode;
     state.particleMultiplier = particleMult;
     stateRef.current = state;
+    if (import.meta.env.DEV) (window as unknown as { __cafeState?: GameState }).__cafeState = state;
     setPhase('playing');
     setHp(state.player.hp);
     setMaxHp(state.player.maxHp);

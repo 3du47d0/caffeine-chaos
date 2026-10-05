@@ -140,6 +140,11 @@ export interface Room {
   isTreasureRoom?: boolean;
   treasureVisited?: boolean;
   isRewardRoom?: boolean;
+  /** grid position on the floor map */
+  gridX?: number;
+  gridY?: number;
+  /** has the player been inside this room (minimap) */
+  visited?: boolean;
 }
 
 export interface Door {

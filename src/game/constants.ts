@@ -89,5 +89,5 @@ export const IN_RUN_SHOP_ITEMS: UpgradeShopItem[] = [
 // Legacy — kept for save compat but no longer shown in lobby
 export const SHOP_ITEMS: UpgradeShopItem[] = IN_RUN_SHOP_ITEMS;
 
-export const ROOMS_PER_FLOOR = 6;
+export const ROOMS_PER_FLOOR = 8;
 export const TOTAL_FLOORS = 3;
