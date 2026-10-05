@@ -10,7 +10,7 @@ import {
   CHARGE_TIME, CHARGE_DAMAGE_MULT, CHARGE_MOVE_PENALTY,
   COMBO_WINDOW, COMBO_DAMAGE_STEP, COMBO_DAMAGE_CAP, BASE_CRIT_CHANCE, CRIT_MULT,
 } from './constants';
-import { generateFloor } from './rooms';
+import { generateFloor, spawnNearDoor, OPPOSITE } from './rooms';
 import { scaleDifficulty, updateAllies, anyAllyAlive } from './coop';
 import {
   defaultRunBuffs, drawRewards, drawHighRarityRewards, drawChestRewards,
@@ -273,10 +273,6 @@ export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
   if (state.phase === 'reward_room') {
     state.phase = 'playing';
     state.rewardChoices = [];
-    // Regenerate exit portal since the old one may have been consumed
-    const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
-    const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
-    state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
     return state;
   }
 
@@ -798,10 +794,7 @@ export function update(state: GameState): GameState {
   if (room.isTreasureRoom && !room.treasureVisited) {
     room.treasureVisited = true;
     state.runStats.treasureRoomsFound++;
-    // Treasure rooms start cleared, so spawn the exit portal here (below the chests).
-    if (!state.exitPortal?.active) {
-      state.exitPortal = { pos: { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 + 110 }, active: true };
-    }
+
     state.clearMessageTimer = 90;
     spawnParticles(state, { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 - 60 }, '#FFD700', 16, 4);
   }
@@ -1360,11 +1353,7 @@ export function update(state: GameState): GameState {
         state.phase = 'reward';
       }
     } else {
-      const portalX = 100 + Math.random() * (CANVAS_WIDTH - 200);
-      const portalY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
-      state.exitPortal = { pos: { x: portalX, y: portalY }, active: true };
-
-      // RNG: 2-5% chance of reward portal
+      // Doors unlock on clear (no exit portal). RNG: 2-5% chance of reward portal
       if (Math.random() < REWARD_PORTAL_CHANCE) {
         const rpX = 100 + Math.random() * (CANVAS_WIDTH - 200);
         const rpY = 100 + Math.random() * (CANVAS_HEIGHT - 200);
@@ -1443,17 +1432,12 @@ export function update(state: GameState): GameState {
     enterRewardRoom(state);
   }
 
-  // Door collision (backward navigation)
-  if (room.cleared) {
+  // Door collision: doors on every side unlock once the room is cleared.
+  if (room.cleared && state.phase === 'playing') {
     for (let di = 0; di < room.doors.length; di++) {
       const door = room.doors[di];
-      if (door.direction === 'south' && dist(player.pos, door.pos) < player.size + 20) {
-        state.currentRoom = door.leadsTo;
-        state.projectiles.length = 0;
-        player.pos.x = CANVAS_WIDTH / 2;
-        player.pos.y = 80;
-        state.exitPortal = null;
-        state.rewardPortal = null;
+      if (dist(player.pos, door.pos) < player.size + 22) {
+        enterRoomThroughDoor(state, door.leadsTo, door.direction);
         break;
       }
     }
@@ -1510,6 +1494,27 @@ function cleanupNonCurrentRooms(state: GameState, targetRoom: number) {
       r.pickups.length = 0;
     }
   }
+}
+
+/** Moves to another room, spawning the player beside the door they came through. */
+function enterRoomThroughDoor(state: GameState, target: number, exitDir: 'north' | 'south' | 'east' | 'west') {
+  const player = state.player;
+  state.currentRoom = target;
+  const next = state.rooms[target];
+  next.visited = true;
+  const spawn = spawnNearDoor(OPPOSITE[exitDir]);
+  player.pos.x = spawn.x; player.pos.y = spawn.y;
+  player.vel.x = 0; player.vel.y = 0;
+  player.dashTimer = 0; player.chargeTimer = 0;
+  player.invincibleTimer = Math.max(player.invincibleTimer, 45);
+  for (let i = 0; i < state.projectiles.length; i++) projectilePool.release(state.projectiles[i]);
+  state.projectiles.length = 0;
+  state.exitPortal = null;
+  state.rewardPortal = null;
+  state.roomTimer = 0;
+  state.roomDamageTaken = 0;
+  state.damageNumbers.length = 0;
+  if (state.runBuffs.leite_aveia > 0) player.shield = true;
 }
 
 function enterRewardRoom(state: GameState) {
