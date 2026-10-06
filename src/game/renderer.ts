@@ -110,6 +110,54 @@ function drawDoors(ctx: CanvasRenderingContext2D, room: Room) {
   }
 }
 
+function drawReviveRing(ctx: CanvasRenderingContext2D, x: number, y: number, progress: number) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(x, y, 30, 0, Math.PI * 2); ctx.stroke();
+  if (progress > 0) {
+    ctx.strokeStyle = '#90EE90';
+    ctx.beginPath(); ctx.arc(x, y, 30, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, progress)); ctx.stroke();
+  }
+  ctx.fillStyle = '#FFF';
+  ctx.font = '8px "Press Start 2P", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('REVIVER', x, y + 44);
+}
+
+function drawNameTag(ctx: CanvasRenderingContext2D, x: number, y: number, name: string, color: string, hp: number, maxHp: number) {
+  ctx.font = '8px "Press Start 2P", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = color;
+  ctx.fillText(name, x, y - 32);
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(x - 16, y - 28, 32, 4);
+  ctx.fillStyle = '#C0392B';
+  ctx.fillRect(x - 16, y - 28, 32 * Math.max(0, hp / maxHp), 4);
+}
+
+/** Co-op teammates, name tags and revive indicators. */
+function drawCoop(ctx: CanvasRenderingContext2D, state: GameState) {
+  if (state.allies.length === 0) return;
+  const p = state.player;
+  drawNameTag(ctx, p.pos.x, p.pos.y, state.hostName || 'Anfitrião', COLORS.player, p.hp, p.maxHp);
+  if (state.hostDowned) drawReviveRing(ctx, p.pos.x, p.pos.y, state.hostReviveProgress / 150);
+  for (const a of state.allies) {
+    const x = a.pos.x, y = a.pos.y;
+    const blink = a.invincible > 0 && !a.downed && Math.floor(a.invincible / 3) % 2 === 0;
+    if (!blink) {
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(x, y + 16, 14, 6, 0, 0, Math.PI * 2); ctx.fill();
+      drawPixelCircle(ctx, x, y, 20, a.downed ? '#555' : a.color);
+      if (a.id === state.localAllyId) {
+        ctx.strokeStyle = '#FFF'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, 24, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+    drawNameTag(ctx, x, y, a.name, a.color, a.hp, a.maxHp);
+    if (a.downed) drawReviveRing(ctx, x, y, a.reviveProgress / 150);
+  }
+}
+
 function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState) {
   const { player } = state;
   const flash = player.invincibleTimer > 0 && Math.floor(player.invincibleTimer / 3) % 2 === 0;
@@ -986,6 +1034,7 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
 
   drawParticles(ctx, state.particles);
   drawPlayer(ctx, state);
+  drawCoop(ctx, state);
   drawDamageNumbers(ctx, state.damageNumbers);
   drawCombo(ctx, state);
   drawMinimap(ctx, state);

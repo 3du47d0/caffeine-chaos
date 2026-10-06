@@ -16,6 +16,9 @@ import { CharacterId } from '../game/characters';
 import { loadMeta, saveMeta } from '../game/meta';
 import { loadPerfMode, savePerfMode, optimizeNow, PerfMode } from '../game/perf';
 import { discoverLore } from '../game/lore';
+import { NetSession, StartPayload } from '../game/net';
+import { createAlly, COOP_CONFIG } from '../game/coop';
+import { makeSnapshot, applySnapshot, Snapshot } from '../game/snapshot';
 
 // Fixed timestep constants
 const FIXED_DT = 1000 / 60; // 16.67ms
@@ -23,6 +26,9 @@ const MAX_STEPS_PER_FRAME = 3; // Cap to prevent spiral of death
 
 export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   const stateRef = useRef<GameState | null>(null);
+  const netRef = useRef<{ session: NetSession; role: 'host' | 'client'; lastSnap: number; lastInput: number; myName: string } | null>(null);
+  const [isCoop, setIsCoop] = useState(false);
+  const [isCoopClient, setIsCoopClient] = useState(false);
   const animFrameRef = useRef<number>(0);
   const [phase, setPhase] = useState<GameState['phase']>('lobby');
   const [gold, setGold] = useState(0);
@@ -56,6 +62,11 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     meta.totalDamageTaken += rs.damageTaken;
     meta.bestCombo = Math.max(meta.bestCombo, state.bestCombo);
     if (state.phase === 'victory' || state.phase === 'secret_victory') meta.victories += 1;
+    if (state.coopPlayers === 2) meta.coopRuns2 += 1;
+    if (state.coopPlayers >= 3) meta.coopRuns3 += 1;
+    const net = netRef.current;
+    if (net?.role === 'host') meta.revives += state.hostRevives;
+    else if (net?.role === 'client') meta.revives += state.allies.find(a => a.id === net.session.myId)?.revivesGiven ?? 0;
     meta.totalKills += state.runStats.enemiesKilled;
     meta.totalBosses += state.runStats.bossesDefeated;
     meta.deepestFloor = Math.max(meta.deepestFloor, state.floor);
@@ -175,8 +186,8 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     }
   }, []);
 
-  const startRun = useCallback((difficulty: DifficultyId = 'medium', character: CharacterId = 'barista') => {
-    const state = createInitialState(upgradesRef.current, difficulty, character);
+  const startRun = useCallback((difficulty: DifficultyId = 'medium', character: CharacterId = 'barista', players = 1) => {
+    const state = createInitialState(upgradesRef.current, difficulty, character, players);
     state.perfMode = perfMode;
     state.particleMultiplier = particleMult;
     stateRef.current = state;
@@ -205,11 +216,54 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       saveData();
     }
     stateRef.current = null;
+    const net = netRef.current;
+    netRef.current = null;
+    if (net) { net.session.leave(); setIsCoop(false); setIsCoopClient(false); }
     setPhase('lobby');
     setRunGold(0);
     setRewardChoices([]);
     musicManager.stop();
   }, [saveData, updateAchievements, recordMeta, musicManager]);
+
+  /** Starts an online co-op run for host or client from the lobby start payload. */
+  const startCoop = useCallback((session: NetSession, payload: StartPayload) => {
+    const me = payload.players.find(p => p.id === session.myId);
+    if (!me) return;
+    const n = payload.players.length;
+    startRun(payload.difficulty, me.characterId, n);
+    const state = stateRef.current!;
+    const host = payload.players.find(p => p.id === payload.hostId);
+    state.hostName = host?.name;
+    const role = session.isHost ? 'host' : 'client';
+    netRef.current = { session, role, lastSnap: 0, lastInput: 0, myName: me.name };
+    setIsCoop(true);
+    setIsCoopClient(role === 'client');
+    if (role === 'host') {
+      state.allies = payload.players.filter(p => p.id !== session.myId).map((p, i) => createAlly(p.id, p.name, p.characterId, i));
+      session.onInput = (id, input) => {
+        const ally = stateRef.current?.allies.find(a => a.id === id);
+        if (ally) ally.input = input;
+      };
+      session.onPlayerLeft = (id) => {
+        const st = stateRef.current;
+        if (!st) return;
+        const leaver = st.allies.find(a => a.id === id);
+        st.allies = st.allies.filter(a => a.id !== id);
+        if (leaver) toast(`${leaver.name} saiu da partida.`);
+      };
+    } else {
+      state.localAllyId = session.myId;
+      session.onSnapshot = (snap) => {
+        const st = stateRef.current;
+        if (st) applySnapshot(st, snap as Snapshot);
+      };
+      session.onHostLeft = () => {
+        toast.error('O anfitrião saiu. A partida terminou.');
+        const st = stateRef.current;
+        if (st && st.phase !== 'gameover' && st.phase !== 'victory' && st.phase !== 'secret_victory') st.phase = 'gameover';
+      };
+    }
+  }, [startRun]);
 
   const chooseBuff = useCallback((buff: RunBuff) => {
     const state = stateRef.current;
@@ -267,8 +321,27 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
       lastTime = now;
 
       const state = stateRef.current;
+      const net = netRef.current;
 
-      if (state && (state.phase === 'playing' || ((state as any)._quickRestart))) {
+      // ---- Online client: send inputs, render host snapshots ----
+      if (state && net?.role === 'client') {
+        const me = state.allies.find(a => a.id === net.session.myId);
+        const input = inputManager.getInput(me?.pos ?? state.player.pos);
+        if (state.phase === 'playing' && now - net.lastInput > 1000 / COOP_CONFIG.inputHz) {
+          net.session.sendInput({ mx: input.moveX, my: input.moveY, ax: input.aimX, ay: input.aimY, shoot: input.shoot });
+          net.lastInput = now;
+        }
+        if (state.phase === 'playing' || state.phase === 'reward' || state.phase === 'reward_room') render(ctx, state);
+        const pv = prevValsRef.current;
+        if (me) {
+          if (me.hp !== pv.hp) { setHp(me.hp); pv.hp = me.hp; }
+          if (me.maxHp !== pv.maxHp) { setMaxHp(me.maxHp); pv.maxHp = me.maxHp; }
+        }
+        if (state.floor !== pv.floor) { setFloor(state.floor); pv.floor = state.floor; }
+        if (Math.floor(state.runTimer / 60) !== Math.floor(pv.runTimer / 60)) { setRunTimer(state.runTimer); pv.runTimer = state.runTimer; }
+      }
+
+      if (state && net?.role !== 'client' && (state.phase === 'playing' || ((state as any)._quickRestart))) {
         // Sync input once per frame (not per physics step)
         const input = inputManager.getInput(state.player.pos);
         state.keys.clear();
@@ -278,7 +351,8 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
         if (input.moveY > 0.3) state.keys.add('s');
         if (input.dash) state.keys.add(' ');
         if (input.ultimate) state.keys.add('q');
-        if (inputManager.keys.has('r')) state.keys.add('r');
+        if (inputManager.keys.has('r') && !net) state.keys.add('r');
+        if (state.hostDowned) { state.keys.clear(); input.shoot = false; }
         state.mousePos.x = input.aimX;
         state.mousePos.y = input.aimY;
         state.mouseDown = input.shoot;
@@ -305,6 +379,11 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
         // Render once per frame
         render(ctx, state);
+
+        if (net?.role === 'host' && now - net.lastSnap > 1000 / COOP_CONFIG.snapshotHz) {
+          net.session.sendSnapshot(makeSnapshot(state, net.myName));
+          net.lastSnap = now;
+        }
 
         // Only update React state when values actually change
         const pv = prevValsRef.current;
@@ -343,6 +422,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
       if (state && state.phase !== lastPhase) {
         lastPhase = state.phase;
+        if (net?.role === 'host') { net.session.sendSnapshot(makeSnapshot(state, net.myName)); net.lastSnap = now; }
         setPhase(state.phase);
         if (state.phase === 'reward' || state.phase === 'reward_room') {
           setRewardChoices([...state.rewardChoices]);
@@ -400,7 +480,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   return {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
     runTimer, roomTimes, inputManager, isBossRoom,
-    startRun, returnToLobby, chooseBuff, toggleMusic,
+    startRun, startCoop, isCoop, isCoopClient, returnToLobby, chooseBuff, toggleMusic,
     hardReset,
     perfMode, setPerfMode, optimizeGame,
     upgrades: upgradesRef.current,

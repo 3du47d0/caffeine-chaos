@@ -331,6 +331,10 @@ export interface GameState {
   hostRevives: number;
   coopLastRoom: number;
   coopLastFloor: number;
+  /** display name of the host (co-op) */
+  hostName?: string;
+  /** on clients: the id of the ally this device controls */
+  localAllyId?: string;
 
   // Cached per-run computations to avoid per-frame GC
   _cache: any;
