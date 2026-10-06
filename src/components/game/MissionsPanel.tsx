@@ -64,7 +64,7 @@ const MissionsPanel: React.FC = () => {
             </div>
             {cat === 'multiplayer' && (
               <p className="font-pixel text-muted-foreground mt-1" style={{ fontSize: '7px' }}>
-                Disponíveis quando o modo multiplayer chegar.
+                Jogue pela aba MULTIPLAYER para avançar.
               </p>
             )}
           </div>

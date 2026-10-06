@@ -3,6 +3,8 @@ import { CHARACTERS, isCharacterUnlocked, CharacterId } from '../../game/charact
 import { DIFFICULTIES, isDifficultyUnlocked, DifficultyId } from '../../game/difficulty';
 import AchievementsScreen from './AchievementsScreen';
 import MissionsPanel from './MissionsPanel';
+import MultiplayerPanel from './MultiplayerPanel';
+import type { NetSession, StartPayload } from '../../game/net';
 
 interface LobbyProps {
   gold: number;
@@ -12,13 +14,14 @@ interface LobbyProps {
   onToggleMusic?: () => void;
   musicMuted?: boolean;
   onHardReset?: () => void;
+  onStartCoop?: (session: NetSession, payload: StartPayload) => void;
 }
 
-const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevice, onToggleMusic, musicMuted, onHardReset }) => {
+const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevice, onToggleMusic, musicMuted, onHardReset, onStartCoop }) => {
   const [showAchievements, setShowAchievements] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>('medium');
   const [selectedCharacter, setSelectedCharacter] = useState<CharacterId>('barista');
-  const [tab, setTab] = useState<'main' | 'characters' | 'missions'>('main');
+  const [tab, setTab] = useState<'main' | 'characters' | 'missions' | 'multiplayer'>('main');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const visibleDifficulties = DIFFICULTIES.filter(d => !d.hidden || isDifficultyUnlocked(d.id));
@@ -67,6 +70,14 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
             }`}
           >
             📜 MISSÕES
+          </button>
+          <button
+            onClick={() => setTab('multiplayer')}
+            className={`font-pixel text-xs px-4 py-2 rounded-lg pixel-border transition-all ${
+              tab === 'multiplayer' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
+            }`}
+          >
+            👥 MULTIPLAYER
           </button>
         </div>
 
@@ -141,6 +152,10 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
         )}
 
         {tab === 'missions' && <MissionsPanel />}
+
+        {tab === 'multiplayer' && onStartCoop && (
+          <MultiplayerPanel difficulty={selectedDifficulty} onStart={onStartCoop} />
+        )}
 
         {tab === 'characters' && (
           <div className="pixel-border rounded-lg p-3 sm:p-4 mb-4 bg-card">

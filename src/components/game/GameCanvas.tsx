@@ -14,7 +14,7 @@ const GameCanvas: React.FC = () => {
   const {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
     runTimer, roomTimes, inputManager, isBossRoom,
-    startRun, returnToLobby, chooseBuff, toggleMusic,
+    startRun, startCoop, isCoop, isCoopClient, returnToLobby, chooseBuff, toggleMusic,
     hardReset,
     upgrades, unlockedAchievement, clearAchievementNotification, musicMuted,
   } = useGame(canvasRef);
@@ -86,6 +86,7 @@ const GameCanvas: React.FC = () => {
           onToggleMusic={toggleMusic}
           musicMuted={musicMuted}
           onHardReset={hardReset}
+          onStartCoop={startCoop}
         />
       )}
 
@@ -112,6 +113,11 @@ const GameCanvas: React.FC = () => {
               isSecretRoom={phase === 'reward_room'}
             />
           )}
+          {isCoopClient && (phase === 'reward' || phase === 'reward_room') && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/60 pointer-events-none">
+              <p className="font-pixel text-xs text-primary text-glow">O anfitrião está escolhendo uma recompensa...</p>
+            </div>
+          )}
           {(phase === 'gameover' || phase === 'victory' || phase === 'secret_victory') && (
             <GameOver
               victory={phase === 'victory' || phase === 'secret_victory'}
@@ -120,7 +126,7 @@ const GameCanvas: React.FC = () => {
               runTimer={runTimer}
               roomTimes={roomTimes}
               onReturnToLobby={returnToLobby}
-              onRestart={() => startRun()}
+              onRestart={isCoop ? returnToLobby : () => startRun()}
             />
           )}
         </div>
