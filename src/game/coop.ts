@@ -66,7 +66,7 @@ export function createAlly(id: string, name: string, characterId: CharacterId, i
   const hp = Math.floor(PLAYER_HP * ch.hpMult);
   return {
     id, name, characterId, color: ALLY_COLORS[index % ALLY_COLORS.length],
-    pos: { x: CANVAS_WIDTH / 2 + (index + 1) * 40, y: CANVAS_HEIGHT / 2 },
+    pos: { x: CANVAS_WIDTH / 2 + (index === 0 ? -50 : 50), y: CANVAS_HEIGHT / 2 + 40 },
     hp, maxHp: hp, downed: false, reviveProgress: 0, shootCd: 0, invincible: 60,
     input: { mx: 0, my: 0, ax: CANVAS_WIDTH / 2, ay: 0, shoot: false },
     revivesGiven: 0,
@@ -99,7 +99,15 @@ export function updateAllies(state: GameState) {
   // Snap allies to the host when the room changes.
   if (state.coopLastRoom !== state.currentRoom || state.coopLastFloor !== state.floor) {
     state.coopLastRoom = state.currentRoom; state.coopLastFloor = state.floor;
-    state.allies.forEach((a, i) => { a.pos.x = player.pos.x + (i + 1) * 36; a.pos.y = player.pos.y + 20; a.invincible = 60; });
+    // Spread allies around the host (inside the room) so nobody stacks up.
+    const offsets = [[-44, 30], [44, 30], [0, 52]];
+    state.allies.forEach((a, i) => {
+      const [ox, oy] = offsets[i % offsets.length];
+      const towardCenterY = player.pos.y > CANVAS_HEIGHT / 2 ? -1 : 1;
+      a.pos.x = Math.max(margin, Math.min(CANVAS_WIDTH - margin, player.pos.x + ox));
+      a.pos.y = Math.max(margin, Math.min(CANVAS_HEIGHT - margin, player.pos.y + oy * towardCenterY));
+      a.invincible = 60;
+    });
   }
 
   for (const a of state.allies) {

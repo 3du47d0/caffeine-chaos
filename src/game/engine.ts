@@ -304,6 +304,16 @@ export function applyRunBuff(state: GameState, buff: RunBuff): GameState {
 
 function updateBoss(state: GameState, boss: Boss) {
   const { player } = state;
+  // Co-op: the boss focuses the nearest standing player.
+  let tgt: Vec2 = player.pos;
+  if (state.allies.length > 0) {
+    let best = state.hostDowned ? Infinity : dist(boss.pos, player.pos);
+    for (const al of state.allies) {
+      if (al.downed) continue;
+      const d = dist(boss.pos, al.pos);
+      if (d < best) { best = d; tgt = al.pos; }
+    }
+  }
   const margin = 60;
 
   boss.angle += 0.04;
@@ -315,8 +325,8 @@ function updateBoss(state: GameState, boss: Boss) {
     case 'grinder': {
       if (boss.moveTimer <= 0) {
         boss.moveTimer = 30;
-        _tmpVec.x = player.pos.x - boss.pos.x;
-        _tmpVec.y = player.pos.y - boss.pos.y;
+        _tmpVec.x = tgt.x - boss.pos.x;
+        _tmpVec.y = tgt.y - boss.pos.y;
         normalizeInto(_tmpVec, _tmpNorm);
         boss.pos.x += _tmpNorm.x * 2.5;
         boss.pos.y += _tmpNorm.y * 2.5;
@@ -381,7 +391,7 @@ function updateBoss(state: GameState, boss: Boss) {
             pos: { x: 150 + Math.random() * 500, y: 150 + Math.random() * 300 },
             vel: { x: 0, y: 0 }, size: 14, hp: 40, maxHp: 40, type: 'angry_cup',
             shootTimer: 60, moveTimer: 30,
-            targetPos: { x: player.pos.x, y: player.pos.y }, dropGold: 2,
+            targetPos: { x: tgt.x, y: tgt.y }, dropGold: 2,
           });
         }
       }
@@ -442,8 +452,8 @@ function updateBoss(state: GameState, boss: Boss) {
       if (hpRatio > 0.7) {
         if (boss.moveTimer <= 0) {
           boss.moveTimer = 20;
-          _tmpVec.x = player.pos.x - boss.pos.x;
-          _tmpVec.y = player.pos.y - boss.pos.y;
+          _tmpVec.x = tgt.x - boss.pos.x;
+          _tmpVec.y = tgt.y - boss.pos.y;
           normalizeInto(_tmpVec, _tmpNorm);
           boss.pos.x += _tmpNorm.x * 3;
           boss.pos.y += _tmpNorm.y * 3;
@@ -463,7 +473,7 @@ function updateBoss(state: GameState, boss: Boss) {
         if (boss.summonTimer <= 0) {
           boss.summonTimer = 240;
           // Aim at player
-          boss.laserAngle = Math.atan2(player.pos.y - boss.pos.y, player.pos.x - boss.pos.x);
+          boss.laserAngle = Math.atan2(tgt.y - boss.pos.y, tgt.x - boss.pos.x);
           boss.laserChargeTimer = 60; // 1s warning
           boss.ultimateActive = false;
         }
@@ -472,16 +482,16 @@ function updateBoss(state: GameState, boss: Boss) {
       else if (hpRatio > 0.4) {
         if (boss.moveTimer <= 0) {
           boss.moveTimer = 15;
-          _tmpVec.x = player.pos.x - boss.pos.x;
-          _tmpVec.y = player.pos.y - boss.pos.y;
+          _tmpVec.x = tgt.x - boss.pos.x;
+          _tmpVec.y = tgt.y - boss.pos.y;
           normalizeInto(_tmpVec, _tmpNorm);
           boss.pos.x += _tmpNorm.x * 4;
           boss.pos.y += _tmpNorm.y * 4;
         }
         if (boss.shootTimer <= 0) {
           boss.shootTimer = 30;
-          _tmpVec.x = player.pos.x - boss.pos.x;
-          _tmpVec.y = player.pos.y - boss.pos.y;
+          _tmpVec.x = tgt.x - boss.pos.x;
+          _tmpVec.y = tgt.y - boss.pos.y;
           normalizeInto(_tmpVec, _tmpNorm);
           for (let i = -1; i <= 1; i++) {
             const spread = i * 0.3;
@@ -507,7 +517,7 @@ function updateBoss(state: GameState, boss: Boss) {
               ));
             }
           } else {
-            boss.laserAngle = Math.atan2(player.pos.y - boss.pos.y, player.pos.x - boss.pos.x);
+            boss.laserAngle = Math.atan2(tgt.y - boss.pos.y, tgt.x - boss.pos.x);
             boss.laserChargeTimer = 50; // Faster charge in phase 2
             boss.ultimateActive = false;
           }
@@ -536,8 +546,8 @@ function updateBoss(state: GameState, boss: Boss) {
               5, 15, false, 100,
             ));
           }
-          _tmpVec.x = player.pos.x - boss.pos.x;
-          _tmpVec.y = player.pos.y - boss.pos.y;
+          _tmpVec.x = tgt.x - boss.pos.x;
+          _tmpVec.y = tgt.y - boss.pos.y;
           normalizeInto(_tmpVec, _tmpNorm);
           state.projectiles.push(acquireProjectile(
             boss.pos.x, boss.pos.y,
@@ -562,7 +572,7 @@ function updateBoss(state: GameState, boss: Boss) {
                 pos: { x: 150 + Math.random() * 500, y: 150 + Math.random() * 300 },
                 vel: { x: 0, y: 0 }, size: 14, hp: 50, maxHp: 50, type: 'drone',
                 shootTimer: 40, moveTimer: 20,
-                targetPos: { x: player.pos.x, y: player.pos.y }, dropGold: 3,
+                targetPos: { x: tgt.x, y: tgt.y }, dropGold: 3,
               });
             }
           }
