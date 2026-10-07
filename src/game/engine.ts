@@ -1031,7 +1031,18 @@ export function update(state: GameState): GameState {
 
     if (enemy.hitFlash && enemy.hitFlash > 0) enemy.hitFlash--;
 
-    const distToPlayer = dist(enemy.pos, player.pos);
+    // Co-op: chase the nearest standing player (host or ally).
+    let tgt: Vec2 = player.pos;
+    if (state.allies.length > 0) {
+      let best = state.hostDowned ? Infinity : dist(enemy.pos, player.pos);
+      if (state.hostDowned) tgt = state.allies[0].pos;
+      for (const al of state.allies) {
+        if (al.downed) continue;
+        const d = dist(enemy.pos, al.pos);
+        if (d < best) { best = d; tgt = al.pos; }
+      }
+    }
+    const distToPlayer = dist(enemy.pos, tgt);
 
     // ---- Role-based behaviour ----
     // Each archetype asks a different question of the player.
@@ -1047,8 +1058,8 @@ export function update(state: GameState): GameState {
       } else if (enemy.windupTimer > 0) {
         enemy.windupTimer--;
         if (enemy.windupTimer === 0) {
-          _tmpVec.x = player.pos.x - enemy.pos.x;
-          _tmpVec.y = player.pos.y - enemy.pos.y;
+          _tmpVec.x = tgt.x - enemy.pos.x;
+          _tmpVec.y = tgt.y - enemy.pos.y;
           normalizeInto(_tmpVec, _tmpNorm);
           enemy.vel.x = _tmpNorm.x * 5.5 * enemySpeedMult;
           enemy.vel.y = _tmpNorm.y * 5.5 * enemySpeedMult;
@@ -1061,8 +1072,8 @@ export function update(state: GameState): GameState {
           enemy.moveTimer = 130 + Math.random() * 60;
           enemy.windupTimer = 34; // visible tell before the charge
         }
-        _tmpVec.x = player.pos.x - enemy.pos.x;
-        _tmpVec.y = player.pos.y - enemy.pos.y;
+        _tmpVec.x = tgt.x - enemy.pos.x;
+        _tmpVec.y = tgt.y - enemy.pos.y;
         normalizeInto(_tmpVec, _tmpNorm);
         enemy.pos.x += _tmpNorm.x * config.speed * enemySpeedMult;
         enemy.pos.y += _tmpNorm.y * config.speed * enemySpeedMult;
@@ -1072,8 +1083,8 @@ export function update(state: GameState): GameState {
       enemy.moveTimer--;
       if (enemy.moveTimer <= 0) {
         enemy.moveTimer = 22 + Math.random() * 18;
-        _tmpVec.x = player.pos.x - enemy.pos.x;
-        _tmpVec.y = player.pos.y - enemy.pos.y;
+        _tmpVec.x = tgt.x - enemy.pos.x;
+        _tmpVec.y = tgt.y - enemy.pos.y;
         normalizeInto(_tmpVec, _tmpNorm);
         const strafe = (Math.random() - 0.5) * 1.6;
         enemy.targetPos.x = enemy.pos.x + (_tmpNorm.x - _tmpNorm.y * strafe) * 120;
@@ -1087,8 +1098,8 @@ export function update(state: GameState): GameState {
     } else if (role === 'ranged') {
       // Keeps its preferred distance: backs off when crowded, closes when far.
       const ideal = 210;
-      _tmpVec.x = player.pos.x - enemy.pos.x;
-      _tmpVec.y = player.pos.y - enemy.pos.y;
+      _tmpVec.x = tgt.x - enemy.pos.x;
+      _tmpVec.y = tgt.y - enemy.pos.y;
       normalizeInto(_tmpVec, _tmpNorm);
       let dir = 0;
       if (distToPlayer > ideal + 40) dir = 1;
@@ -1103,8 +1114,8 @@ export function update(state: GameState): GameState {
       // special (drone): orbits the player and punishes standing still.
       enemy.orbitAngle = (enemy.orbitAngle ?? Math.random() * Math.PI * 2) + 0.03;
       const radius = 150;
-      const tx = player.pos.x + Math.cos(enemy.orbitAngle) * radius;
-      const ty = player.pos.y + Math.sin(enemy.orbitAngle) * radius;
+      const tx = tgt.x + Math.cos(enemy.orbitAngle) * radius;
+      const ty = tgt.y + Math.sin(enemy.orbitAngle) * radius;
       _tmpVec.x = tx - enemy.pos.x;
       _tmpVec.y = ty - enemy.pos.y;
       normalizeInto(_tmpVec, _tmpNorm);
@@ -1118,8 +1129,8 @@ export function update(state: GameState): GameState {
     enemy.shootTimer--;
     if (enemy.shootTimer <= 0 && (enemy.type === 'angry_cup' || enemy.type === 'drone' || isMiniBoss)) {
       enemy.shootTimer = isMiniBoss ? 40 + Math.random() * 30 : 60 + Math.random() * 60;
-      _tmpVec.x = player.pos.x - enemy.pos.x;
-      _tmpVec.y = player.pos.y - enemy.pos.y;
+      _tmpVec.x = tgt.x - enemy.pos.x;
+      _tmpVec.y = tgt.y - enemy.pos.y;
       normalizeInto(_tmpVec, _tmpNorm);
       const dmg = Math.floor(config.damage * enemyDmgMult);
 
