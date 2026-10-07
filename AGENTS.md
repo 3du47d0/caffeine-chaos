@@ -1,0 +1,3 @@
+- Online co-op is host-authoritative over realtime broadcast channels (src/game/net.ts): only the host runs the engine; clients send inputs and render snapshots (src/game/snapshot.ts). Why: one source of truth avoids desync without a game server.
+- Co-op tunables (player cap, difficulty per player count, revive timing, network rates) live only in COOP_CONFIG in src/game/coop.ts. Why: balancing in one place.
+- Floors are grid layouts built in src/game/rooms.ts (start = index 0, boss = last index, farthest room); rooms connect only through doors. Why: engine code relies on the boss being the last room.
