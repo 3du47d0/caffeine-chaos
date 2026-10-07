@@ -814,7 +814,7 @@ function drawClearMessage(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.fillText('☕ CAMINHO LIVRE! ☕', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
   ctx.font = '14px monospace';
   ctx.fillStyle = '#FFF';
-  ctx.fillText('Encontre o Portal de Vapor', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 30);
+  ctx.fillText('Escolha uma porta para continuar', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 30);
   ctx.globalAlpha = 1;
   ctx.textBaseline = 'alphabetic';
 }
