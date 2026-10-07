@@ -1457,7 +1457,8 @@ export function update(state: GameState): GameState {
   if (room.cleared && state.phase === 'playing') {
     for (let di = 0; di < room.doors.length; di++) {
       const door = room.doors[di];
-      if (dist(player.pos, door.pos) < 64) {
+      const allyAtDoor = state.allies.some(al => !al.downed && dist(al.pos, door.pos) < 64);
+      if (dist(player.pos, door.pos) < 64 || allyAtDoor) {
         enterRoomThroughDoor(state, door.leadsTo, door.direction);
         break;
       }
