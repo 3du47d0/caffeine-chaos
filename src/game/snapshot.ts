@@ -55,8 +55,55 @@ export function makeSnapshot(state: GameState, hostName: string): Snapshot {
   };
 }
 
+// ---- Client-side smoothing: render positions glide toward the latest snapshot ----
+type P = { x: number; y: number };
+const targets = { player: null as P | null, allies: new Map<string, P>(), enemies: [] as P[], boss: null as P | null };
+
+/** Call once per rendered frame on clients. */
+export function tickClient(state: GameState) {
+  const k = 0.35;
+  const lerp = (o: P, t: P | null | undefined) => {
+    if (!t) return;
+    const dx = t.x - o.x, dy = t.y - o.y;
+    if (dx * dx + dy * dy > 200 * 200) { o.x = t.x; o.y = t.y; return; }
+    o.x += dx * k; o.y += dy * k;
+  };
+  lerp(state.player.pos, targets.player);
+  for (const a of state.allies) lerp(a.pos, targets.allies.get(a.id));
+  const room = state.rooms[state.currentRoom];
+  if (room) {
+    room.enemies.forEach((e, i) => lerp(e.pos, targets.enemies[i]));
+    if (room.boss) lerp(room.boss.pos, targets.boss);
+  }
+  for (const p of state.projectiles) { p.pos.x += p.vel.x; p.pos.y += p.vel.y; }
+}
+
 /** Writes a snapshot into a local (render-only) state owned by a client. */
 export function applySnapshot(state: GameState, s: Snapshot) {
+  const sameRoom = state.currentRoom === s.cr && state.floor === s.fl;
+  const prevPlayer = { x: state.player.pos.x, y: state.player.pos.y };
+  const prevAllies = new Map(state.allies.map(a => [a.id, { x: a.pos.x, y: a.pos.y }]));
+  const prevRoom = state.rooms[state.currentRoom];
+  const prevEnemies = sameRoom && prevRoom ? prevRoom.enemies.map(e => ({ x: e.pos.x, y: e.pos.y })) : [];
+  const prevBoss = sameRoom && prevRoom?.boss ? { x: prevRoom.boss.pos.x, y: prevRoom.boss.pos.y } : null;
+  applyRaw(state, s);
+  // Record targets, then rewind rendered positions to where they were drawn last frame.
+  targets.player = { x: s.p.x, y: s.p.y };
+  if (sameRoom) { state.player.pos.x = prevPlayer.x; state.player.pos.y = prevPlayer.y; }
+  targets.allies.clear();
+  for (const a of state.allies) {
+    targets.allies.set(a.id, { x: a.pos.x, y: a.pos.y });
+    const pv = prevAllies.get(a.id);
+    if (pv && sameRoom) { a.pos = { x: pv.x, y: pv.y }; }
+  }
+  const room = state.rooms[state.currentRoom];
+  targets.enemies = room.enemies.map(e => ({ x: e.pos.x, y: e.pos.y }));
+  room.enemies.forEach((e, i) => { if (prevEnemies[i] && prevEnemies.length === room.enemies.length) e.pos = { ...prevEnemies[i] }; });
+  targets.boss = room.boss ? { x: room.boss.pos.x, y: room.boss.pos.y } : null;
+  if (room.boss && prevBoss) room.boss.pos = { ...prevBoss };
+}
+
+function applyRaw(state: GameState, s: Snapshot) {
   if (state.floor !== s.fl) state._cache = null;
   state.phase = s.ph;
   state.floor = s.fl;
