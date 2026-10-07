@@ -18,7 +18,7 @@ import { loadPerfMode, savePerfMode, optimizeNow, PerfMode } from '../game/perf'
 import { discoverLore } from '../game/lore';
 import { NetSession, StartPayload } from '../game/net';
 import { createAlly, COOP_CONFIG } from '../game/coop';
-import { makeSnapshot, applySnapshot, Snapshot } from '../game/snapshot';
+import { makeSnapshot, applySnapshot, tickClient, Snapshot } from '../game/snapshot';
 
 // Fixed timestep constants
 const FIXED_DT = 1000 / 60; // 16.67ms
@@ -331,6 +331,7 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
           net.session.sendInput({ mx: input.moveX, my: input.moveY, ax: input.aimX, ay: input.aimY, shoot: input.shoot });
           net.lastInput = now;
         }
+        if (state.phase === 'playing') tickClient(state);
         if (state.phase === 'playing' || state.phase === 'reward' || state.phase === 'reward_room') render(ctx, state);
         const pv = prevValsRef.current;
         if (me) {
