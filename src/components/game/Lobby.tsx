@@ -4,6 +4,9 @@ import { DIFFICULTIES, isDifficultyUnlocked, DifficultyId } from '../../game/dif
 import AchievementsScreen from './AchievementsScreen';
 import MissionsPanel from './MissionsPanel';
 import MultiplayerPanel from './MultiplayerPanel';
+import CollectionPanel from './CollectionPanel';
+import SettingsPanel from './SettingsPanel';
+import type { PerfMode } from '../../game/perf';
 import type { NetSession, StartPayload } from '../../game/net';
 
 interface LobbyProps {
@@ -15,13 +18,15 @@ interface LobbyProps {
   musicMuted?: boolean;
   onHardReset?: () => void;
   onStartCoop?: (session: NetSession, payload: StartPayload) => void;
+  perfMode?: PerfMode;
+  onPerfMode?: (m: PerfMode) => void;
 }
 
-const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevice, onToggleMusic, musicMuted, onHardReset, onStartCoop }) => {
+const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevice, onToggleMusic, musicMuted, onHardReset, onStartCoop, perfMode, onPerfMode }) => {
   const [showAchievements, setShowAchievements] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>('medium');
   const [selectedCharacter, setSelectedCharacter] = useState<CharacterId>('barista');
-  const [tab, setTab] = useState<'main' | 'characters' | 'missions' | 'multiplayer'>('main');
+  const [tab, setTab] = useState<'main' | 'characters' | 'missions' | 'multiplayer' | 'collection' | 'settings'>('main');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const visibleDifficulties = DIFFICULTIES.filter(d => !d.hidden || isDifficultyUnlocked(d.id));
@@ -78,6 +83,22 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
             }`}
           >
             👥 MULTIPLAYER
+          </button>
+          <button
+            onClick={() => setTab('collection')}
+            className={`font-pixel text-xs px-4 py-2 rounded-lg pixel-border transition-all ${
+              tab === 'collection' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
+            }`}
+          >
+            📚 COLEÇÃO
+          </button>
+          <button
+            onClick={() => setTab('settings')}
+            className={`font-pixel text-xs px-4 py-2 rounded-lg pixel-border transition-all ${
+              tab === 'settings' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'
+            }`}
+          >
+            ⚙ CONFIGURAÇÕES
           </button>
         </div>
 
@@ -153,6 +174,18 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
 
         {tab === 'missions' && <MissionsPanel />}
 
+        {tab === 'collection' && <CollectionPanel />}
+
+        {tab === 'settings' && (
+          <SettingsPanel
+            musicMuted={musicMuted}
+            onToggleMusic={onToggleMusic}
+            perfMode={perfMode}
+            onPerfMode={onPerfMode}
+            onResetRequest={() => setShowResetConfirm(true)}
+          />
+        )}
+
         {tab === 'multiplayer' && onStartCoop && (
           <MultiplayerPanel difficulty={selectedDifficulty} onStart={onStartCoop} />
         )}
@@ -181,7 +214,7 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
                     <div className="flex-1 min-w-0">
                       <div className="font-pixel text-xs text-foreground">{unlocked ? char.name : '???'}</div>
                       <div className="font-pixel text-foreground/60" style={{ fontSize: '8px' }}>
-                        {unlocked ? char.description : (char.unlockCondition?.description || 'Desbloqueie completando desafios')}
+                        {unlocked ? char.description : `🔒 BLOQUEADO — Requisito: ${char.unlockCondition?.description || 'complete desafios'}`}
                       </div>
                       {unlocked && char.bio && (
                         <div className="font-pixel text-foreground/40 italic mt-1" style={{ fontSize: '7px' }}>{char.bio}</div>
@@ -194,9 +227,10 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
                       )}
                       {unlocked && (
                         <div className="flex gap-2 mt-1 font-pixel text-foreground/40" style={{ fontSize: '7px' }}>
-                          <span>HP: {Math.round(char.hpMult * 100)}%</span>
-                          <span>VEL: {Math.round(char.speedMult * 100)}%</span>
-                          <span>DMG: {Math.round(char.damageMult * 100)}%</span>
+                          <span>❤ {Math.round(char.hpMult * 100)}</span>
+                          <span>⚔ {Math.round(char.damageMult * 100)}</span>
+                          <span>🏃 {Math.round(char.speedMult * 100)}</span>
+                          {char.defenseMult && <span>🛡 {Math.round((2 - char.defenseMult) * 100)}</span>}
                         </div>
                       )}
                     </div>
@@ -228,23 +262,6 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
           )}
         </div>
 
-        {/* Music + Reset buttons */}
-        <div className="flex flex-col items-center gap-2 mt-3">
-          {onToggleMusic && (
-            <button
-              onClick={onToggleMusic}
-              className="font-pixel text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {musicMuted ? '🔇 Música OFF' : '🔊 Música ON'}
-            </button>
-          )}
-          <button
-            onClick={() => setShowResetConfirm(true)}
-            className="font-pixel text-xs text-destructive/60 hover:text-destructive transition-colors"
-          >
-            🗑️ Reiniciar Progresso
-          </button>
-        </div>
       </div>
 
       {/* Hard Reset Confirmation Modal */}
