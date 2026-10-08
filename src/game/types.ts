@@ -335,6 +335,8 @@ export interface GameState {
   hostName?: string;
   /** on clients: the id of the ally this device controls */
   localAllyId?: string;
+  /** short on-screen event banner (treasure, boss down, revive...) */
+  banner?: { text: string; color: string; timer: number } | null;
 
   // Cached per-run computations to avoid per-frame GC
   _cache: any;

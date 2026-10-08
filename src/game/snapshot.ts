@@ -28,6 +28,7 @@ export interface Snapshot {
   rp: GameState['rewardPortal'];
   dn: GameState['damageNumbers'];
   cc: number;
+  bn: GameState['banner'];
 }
 
 export function makeSnapshot(state: GameState, hostName: string): Snapshot {
@@ -52,6 +53,7 @@ export function makeSnapshot(state: GameState, hostName: string): Snapshot {
     ep: state.exitPortal, sp: state.secretPortal, rp: state.rewardPortal,
     dn: state.damageNumbers.slice(-20),
     cc: state.comboCount,
+    bn: state.banner ?? null,
   };
 }
 
@@ -133,5 +135,6 @@ function applyRaw(state: GameState, s: Snapshot) {
   state.rewardPortal = s.rp;
   state.damageNumbers = s.dn;
   state.comboCount = s.cc;
+  state.banner = s.bn;
   state.isBossRoom = s.room.isBossRoom;
 }

@@ -11,7 +11,7 @@ import {
   COMBO_WINDOW, COMBO_DAMAGE_STEP, COMBO_DAMAGE_CAP, BASE_CRIT_CHANCE, CRIT_MULT,
 } from './constants';
 import { generateFloor, spawnNearDoor, OPPOSITE } from './rooms';
-import { scaleDifficulty, updateAllies, anyAllyAlive } from './coop';
+import { scaleDifficulty, updateAllies, anyAllyAlive, showBanner } from './coop';
 import {
   defaultRunBuffs, drawRewards, drawHighRarityRewards, drawChestRewards,
   getBuffMultiplier, BuffRarity,
@@ -804,6 +804,7 @@ export function update(state: GameState): GameState {
   if (room.isTreasureRoom && !room.treasureVisited) {
     room.treasureVisited = true;
     state.runStats.treasureRoomsFound++;
+    showBanner(state, '💎 SALA DE TESOURO!');
 
     state.clearMessageTimer = 90;
     spawnParticles(state, { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 - 60 }, '#FFD700', 16, 4);
@@ -1239,6 +1240,7 @@ export function update(state: GameState): GameState {
             state.goldCollected += room.boss.dropGold;
             state.runStats.bossesDefeated++;
             if (state.roomDamageTaken === 0) state.runStats.perfectBossKills++;
+            showBanner(state, '👑 CHEFE DERROTADO!');
             if (state.player.hp < state.player.maxHp * 0.25) state.runStats.lowHpBossKills++;
             spawnParticles(state, room.boss.pos, '#FFD700', 25, 6);
             state.screenShake = 10;
@@ -1474,6 +1476,7 @@ export function update(state: GameState): GameState {
         state.hostDowned = true;
         state.hostReviveProgress = 0;
         player.hp = 0;
+        showBanner(state, `💀 ${state.hostName ?? 'Anfitrião'} caiu! Fique perto para reviver`, '#FF6B6B');
         spawnParticles(state, player.pos, '#C0392B', 12, 4);
       }
     } else {
