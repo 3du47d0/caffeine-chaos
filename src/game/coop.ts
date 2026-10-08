@@ -75,6 +75,10 @@ export function createAlly(id: string, name: string, characterId: CharacterId, i
 
 function d2(a: Vec2, b: Vec2) { const x = a.x - b.x, y = a.y - b.y; return x * x + y * y; }
 
+export function showBanner(state: GameState, text: string, color = '#FFD700') {
+  state.banner = { text, color, timer: 150 };
+}
+
 export function anyAllyAlive(state: GameState): boolean {
   for (const a of state.allies) if (!a.downed) return true;
   return false;
@@ -85,7 +89,7 @@ function hurtAlly(state: GameState, a: CoopAlly, amount: number) {
   const def = getCharacter(a.characterId).defenseMult ?? 1;
   a.hp -= Math.max(1, Math.round(amount * def));
   a.invincible = 30;
-  if (a.hp <= 0) { a.hp = 0; a.downed = true; a.reviveProgress = 0; }
+  if (a.hp <= 0) { a.hp = 0; a.downed = true; a.reviveProgress = 0; showBanner(state, `💀 ${a.name} caiu! Fique perto para reviver`, '#FF6B6B'); }
 }
 
 /** Runs once per physics step on the host. */
@@ -121,6 +125,7 @@ export function updateAllies(state: GameState) {
       if (a.reviveProgress >= COOP_CONFIG.reviveFrames) {
         a.downed = false; a.hp = Math.ceil(a.maxHp * COOP_CONFIG.reviveHpFraction); a.invincible = 90; a.reviveProgress = 0;
         if (helper) helper.revivesGiven++; else state.hostRevives++;
+        showBanner(state, `✚ ${a.name} foi revivido!`, '#90EE90');
       }
       continue;
     }
@@ -185,6 +190,7 @@ export function updateAllies(state: GameState) {
       state.hostDowned = false; state.hostReviveProgress = 0;
       player.hp = Math.ceil(player.maxHp * COOP_CONFIG.reviveHpFraction);
       player.invincibleTimer = 90;
+      showBanner(state, `✚ ${state.hostName ?? 'Anfitrião'} foi revivido!`, '#90EE90');
       for (const b of state.allies) if (!b.downed && d2(b.pos, player.pos) < COOP_CONFIG.reviveRadius ** 2) { b.revivesGiven++; break; }
     } else {
       player.invincibleTimer = Math.max(player.invincibleTimer, 2);

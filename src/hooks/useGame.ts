@@ -79,7 +79,9 @@ export function useGame(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     const after = completedMissionIds(meta);
     for (const m of MISSIONS) {
       if (after.has(m.id) && !before.has(m.id)) {
-        toast.success(`MISSÃO CONCLUÍDA: ${m.title}`, { description: `Recompensa: ${m.reward.label}` });
+        const extra = m.reward.type === 'item' ? ' — agora pode aparecer nos baús e Salas de Tesouro.'
+          : m.reward.type === 'character' ? ' — novo personagem disponível!' : '';
+        toast.success(`✨ MISSÃO CONCLUÍDA: ${m.title}`, { description: `Novo desbloqueio: ${m.reward.label}${extra}`, duration: 6000 });
       }
     }
     discoverLore('intro_2');

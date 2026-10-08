@@ -15,7 +15,7 @@ const GameCanvas: React.FC = () => {
     phase, gold, hp, maxHp, dashCd, ultCd, runGold, floor, rewardChoices, playerShield,
     runTimer, roomTimes, inputManager, isBossRoom,
     startRun, startCoop, isCoop, isCoopClient, returnToLobby, chooseBuff, toggleMusic,
-    hardReset,
+    hardReset, perfMode, setPerfMode,
     upgrades, unlockedAchievement, clearAchievementNotification, musicMuted,
   } = useGame(canvasRef);
 
@@ -87,6 +87,8 @@ const GameCanvas: React.FC = () => {
           musicMuted={musicMuted}
           onHardReset={hardReset}
           onStartCoop={startCoop}
+          perfMode={perfMode}
+          onPerfMode={setPerfMode}
         />
       )}
 

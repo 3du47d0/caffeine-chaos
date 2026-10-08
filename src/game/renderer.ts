@@ -135,6 +135,50 @@ function drawNameTag(ctx: CanvasRenderingContext2D, x: number, y: number, name: 
   ctx.fillRect(x - 16, y - 28, 32 * Math.max(0, hp / maxHp), 4);
 }
 
+function drawBanner(ctx: CanvasRenderingContext2D, state: GameState) {
+  const b = state.banner;
+  if (!b || b.timer <= 0) return;
+  b.timer--;
+  const alpha = Math.min(1, b.timer / 30);
+  ctx.globalAlpha = alpha;
+  ctx.font = '12px "Press Start 2P", monospace';
+  ctx.textAlign = 'center';
+  const w = ctx.measureText(b.text).width + 30;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(CANVAS_WIDTH / 2 - w / 2, 62, w, 28);
+  ctx.fillStyle = b.color;
+  ctx.fillText(b.text, CANVAS_WIDTH / 2, 82);
+  ctx.globalAlpha = 1;
+}
+
+/** Compact co-op roster: name, health and state of every player. */
+function drawCoopRoster(ctx: CanvasRenderingContext2D, state: GameState) {
+  if (state.allies.length === 0) return;
+  const rows = [
+    { name: state.hostName || 'Anfitrião', hp: state.player.hp, max: state.player.maxHp, down: state.hostDowned, color: COLORS.player, me: !state.localAllyId },
+    ...state.allies.map(a => ({ name: a.name, hp: a.hp, max: a.maxHp, down: a.downed, color: a.color, me: a.id === state.localAllyId })),
+  ];
+  const x = 50, h = 16, y0 = CANVAS_HEIGHT - 40 - rows.length * h;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(x - 6, y0 - 14, 170, rows.length * h + 8);
+  ctx.font = '8px "Press Start 2P", monospace';
+  ctx.textAlign = 'left';
+  rows.forEach((r, i) => {
+    const y = y0 + i * h;
+    ctx.fillStyle = r.color;
+    ctx.fillText(`${r.me ? '▶' : ' '}${r.name.slice(0, 8)}`, x, y);
+    if (r.down) {
+      ctx.fillStyle = '#FF6B6B';
+      ctx.fillText('CAÍDO', x + 100, y);
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fillRect(x + 96, y - 7, 60, 6);
+      ctx.fillStyle = '#C0392B';
+      ctx.fillRect(x + 96, y - 7, 60 * Math.max(0, r.hp / r.max), 6);
+    }
+  });
+}
+
 /** Co-op teammates, name tags and revive indicators. */
 function drawCoop(ctx: CanvasRenderingContext2D, state: GameState) {
   if (state.allies.length === 0) return;
@@ -1035,6 +1079,8 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   drawParticles(ctx, state.particles);
   drawPlayer(ctx, state);
   drawCoop(ctx, state);
+  drawBanner(ctx, state);
+  drawCoopRoster(ctx, state);
   drawDamageNumbers(ctx, state.damageNumbers);
   drawCombo(ctx, state);
   drawMinimap(ctx, state);
