@@ -646,7 +646,7 @@ function onEnemyKilled(state: GameState, enemy: Enemy) {
     // Death burst: dodgeable ring of slow shots.
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
-      state.projectiles.push(acquireProjectile(enemy.pos.x, enemy.pos.y, Math.cos(a) * 2.2, Math.sin(a) * 2.2, 4, 1, false, 100));
+      state.projectiles.push(acquireProjectile(enemy.pos.x, enemy.pos.y, Math.cos(a) * 2.2, Math.sin(a) * 2.2, 4, 8, false, 100));
     }
   }
   spawnParticles(state, enemy.pos, '#FFD700', 12);
