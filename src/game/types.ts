@@ -55,6 +55,8 @@ export interface Enemy extends Entity {
   /** knockback velocity */
   knockX?: number;
   knockY?: number;
+  /** elite modifier: adds a mechanic instead of raw HP */
+  elite?: 'armored' | 'volatile' | 'gunner';
 }
 
 
