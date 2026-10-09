@@ -363,6 +363,16 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
       break;
   }
 
+  if (enemy.elite) {
+    ctx.strokeStyle = enemy.elite === 'armored' ? '#A0A0A0' : enemy.elite === 'volatile' ? '#FF5533' : '#55CCFF';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, size + 5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
   // White flash on hit — the core "my shot connected" feedback.
   if (enemy.hitFlash && enemy.hitFlash > 0) {
     ctx.globalAlpha = Math.min(0.75, enemy.hitFlash / 6);

@@ -272,7 +272,15 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
         rand(margin + 50, ROOM_HEIGHT - margin - 50),
         type, diff,
       );
-      enemy.hp = Math.floor(enemy.hp * (1 + floor * 0.3));
+      // Difficulty grows through mechanics (elites) more than raw HP.
+      enemy.hp = Math.floor(enemy.hp * (1 + floor * 0.2));
+      const eliteChance = floor === 0 ? 0 : Math.min(0.35, 0.12 * floor);
+      if (Math.random() < eliteChance) {
+        const kinds = ['armored', 'volatile', 'gunner'] as const;
+        enemy.elite = kinds[randInt(0, kinds.length - 1)];
+        if (enemy.elite === 'armored') enemy.hp = Math.floor(enemy.hp * 1.6);
+        enemy.dropGold += 2;
+      }
       enemy.maxHp = enemy.hp;
       enemies.push(enemy);
     }

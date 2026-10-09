@@ -642,6 +642,13 @@ function onEnemyKilled(state: GameState, enemy: Enemy) {
   const goldMult = 1 + state.runBuffs.sorte * 0.2;
   state.goldCollected += Math.round((enemy.dropGold + cache.achieveBonuses.goldBonus) * goldMult);
   state.runStats.enemiesKilled++;
+  if (enemy.elite === 'volatile') {
+    // Death burst: dodgeable ring of slow shots.
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      state.projectiles.push(acquireProjectile(enemy.pos.x, enemy.pos.y, Math.cos(a) * 2.2, Math.sin(a) * 2.2, 4, 1, false, 100));
+    }
+  }
   spawnParticles(state, enemy.pos, '#FFD700', 12);
 
   if (state.runBuffs.vampiro > 0 && state.player.hp < state.player.maxHp) {
@@ -1138,7 +1145,7 @@ export function update(state: GameState): GameState {
     enemy.pos.y = clamp(enemy.pos.y, margin + enemy.size, CANVAS_HEIGHT - margin - enemy.size);
 
     enemy.shootTimer--;
-    if (enemy.shootTimer <= 0 && (enemy.type === 'angry_cup' || enemy.type === 'drone' || isMiniBoss)) {
+    if (enemy.shootTimer <= 0 && (enemy.type === 'angry_cup' || enemy.type === 'drone' || isMiniBoss || enemy.elite === 'gunner')) {
       enemy.shootTimer = isMiniBoss ? 40 + Math.random() * 30 : 60 + Math.random() * 60;
       _tmpVec.x = tgt.x - enemy.pos.x;
       _tmpVec.y = tgt.y - enemy.pos.y;
