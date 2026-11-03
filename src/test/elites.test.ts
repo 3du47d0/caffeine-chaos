@@ -5,3 +5,7 @@ describe('elite chance', () => {
   it('12% on second floor', () => expect(getEliteChance(1)).toBeCloseTo(0.12));
   it('capped at 35%', () => expect(getEliteChance(10)).toBe(0.35));
 });
+import { getFloorHpMult } from '../game/rooms';
+describe('floor hp growth', () => {
+  it('+8% per floor', () => expect(getFloorHpMult(5)).toBeCloseTo(1.4));
+});
