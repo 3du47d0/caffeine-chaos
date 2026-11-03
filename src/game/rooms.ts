@@ -261,7 +261,7 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
     const isBoss = i === numRooms - 1;
     const isShop = i === shopRoomIndex;
 
-    const enemyCount = isBoss || isShop ? 0 : Math.min(Math.round((3 + floor + Math.floor(i / 2)) * countMult), 12);
+    const enemyCount = isBoss || isShop ? 0 : Math.min(Math.round((3 + Math.round(floor * 0.6) + Math.floor(i / 3)) * countMult), 9);
     const enemies: Enemy[] = [];
     const pickups: Pickup[] = [];
 
@@ -273,7 +273,7 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
         type, diff,
       );
       // Difficulty grows through mechanics (elites) more than raw HP.
-      enemy.hp = Math.floor(enemy.hp * (1 + floor * 0.2));
+      enemy.hp = Math.floor(enemy.hp * getFloorHpMult(floor));
       const eliteChance = getEliteChance(floor);
       if (Math.random() < eliteChance) {
         const kinds = ['armored', 'volatile', 'gunner'] as const;
@@ -374,4 +374,9 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
 /** Elite chance per floor index (0 = first floor): none on floor 1, +12% per floor, capped at 35%. */
 export function getEliteChance(floor: number): number {
   return floor <= 0 ? 0 : Math.min(0.35, 0.12 * floor);
+}
+
+/** Gentle per-floor enemy HP growth (+8%/floor); elites carry most of the difficulty. */
+export function getFloorHpMult(floor: number): number {
+  return 1 + Math.max(0, floor) * 0.08;
 }
