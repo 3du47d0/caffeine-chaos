@@ -274,7 +274,7 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
       );
       // Difficulty grows through mechanics (elites) more than raw HP.
       enemy.hp = Math.floor(enemy.hp * (1 + floor * 0.2));
-      const eliteChance = floor === 0 ? 0 : Math.min(0.35, 0.12 * floor);
+      const eliteChance = getEliteChance(floor);
       if (Math.random() < eliteChance) {
         const kinds = ['armored', 'volatile', 'gunner'] as const;
         enemy.elite = kinds[randInt(0, kinds.length - 1)];
@@ -369,4 +369,9 @@ export function generateFloor(floor: number, numRooms: number, diff?: Difficulty
   }
 
   return rooms;
+}
+
+/** Elite chance per floor index (0 = first floor): none on floor 1, +12% per floor, capped at 35%. */
+export function getEliteChance(floor: number): number {
+  return floor <= 0 ? 0 : Math.min(0.35, 0.12 * floor);
 }
