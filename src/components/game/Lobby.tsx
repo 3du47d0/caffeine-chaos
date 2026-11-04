@@ -42,7 +42,7 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
   if (tab === 'title') {
     const big = 'w-full font-pixel text-xs sm:text-sm py-3 title-btn';
     return (
-      <div className="fixed inset-0 overflow-hidden select-none">
+      <div className="menu-ui fixed inset-0 overflow-hidden select-none">
         <img src={titleBg} alt="" width={1920} height={1088} className="absolute inset-0 w-full h-full object-cover title-pan" style={{ imageRendering: 'pixelated' }} />
         <div className="absolute inset-0 bg-background/30" />
         <div className="relative h-full flex flex-col items-center justify-center px-4">
