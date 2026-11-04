@@ -48,7 +48,7 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
         <div className="relative h-full flex flex-col items-center justify-center px-4">
           <div className="relative mb-10 sm:mb-14">
             <h1 className="title-logo font-pixel text-3xl sm:text-5xl md:text-6xl text-primary">CAFE CHAOS</h1>
-            <span className="title-splash absolute -right-6 sm:-right-16 bottom-0 font-pixel text-[10px] sm:text-sm text-coffee-gold">Grãos: {gold} ✦</span>
+            <span className="title-splash absolute -right-6 sm:-right-16 -bottom-3 font-pixel text-[10px] sm:text-sm text-coffee-gold">Grãos: {gold} ✦</span>
           </div>
           <div className="w-full max-w-sm flex flex-col gap-2.5">
             <button onClick={() => setTab('main')} className={big}>Jogar</button>
