@@ -97,3 +97,29 @@
 .title-shadow { text-shadow: 1px 1px 0 hsl(var(--background)); }
 .title-pan { animation: title-pan 40s ease-in-out infinite alternate; transform-origin: center; }
 @keyframes title-pan { from { transform: scale(1.08) translateX(-2%); } to { transform: scale(1.08) translateX(2%); } }
+
+/* ===== Modern menu UI (all lobby screens) ===== */
+:root { --font-menu: 'Nunito', 'Arial Black', system-ui, sans-serif; --radius-menu: 14px; }
+.menu-ui { font-family: var(--font-menu); }
+.menu-ui .font-pixel, .menu-ui .font-retro { font-family: var(--font-menu); font-weight: 800; letter-spacing: 0.01em; }
+.menu-ui .font-pixel[style*="font-size: 7px"], .menu-ui .font-pixel[style*="font-size: 8px"] { font-size: 11px !important; font-weight: 700; }
+.menu-ui .font-pixel[style*="font-size: 9px"] { font-size: 12px !important; font-weight: 700; }
+.menu-ui .text-xs { font-size: 0.8rem; }
+.menu-ui .pixel-border {
+  border: 1px solid hsl(var(--foreground) / 0.14);
+  border-radius: var(--radius-menu) !important;
+  box-shadow: 0 8px 24px -12px hsl(var(--coffee-espresso) / 0.8), inset 0 1px 0 hsl(var(--foreground) / 0.08);
+}
+.menu-ui .bg-card { background: hsl(var(--card) / 0.82); backdrop-filter: blur(10px); }
+.menu-ui button { border-radius: 12px; transition: transform .15s ease, background-color .15s ease, box-shadow .15s ease, opacity .15s; }
+.menu-ui button:not(:disabled):hover { box-shadow: 0 0 0 2px hsl(var(--primary) / 0.45); }
+.menu-ui button:not(:disabled):active { transform: scale(0.97); }
+.menu-ui button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.menu-ui .text-glow { text-shadow: 0 2px 12px hsl(var(--coffee-gold) / 0.35); }
+.menu-enter { animation: menu-enter .28s ease-out; }
+@keyframes menu-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.title-logo { font-family: var(--font-menu) !important; font-weight: 900; letter-spacing: 0.02em; }
+.title-btn { font-family: var(--font-menu) !important; font-weight: 800; font-size: 1rem !important; border-radius: 14px !important; border: 1px solid hsl(var(--foreground) / 0.18) !important; box-shadow: 0 6px 18px -8px hsl(var(--coffee-espresso)), inset 0 1px 0 hsl(var(--foreground) / 0.18) !important; text-shadow: none !important; backdrop-filter: blur(6px); transition: transform .15s, background .15s !important; }
+.title-btn:hover { transform: translateY(-2px); }
+.title-btn:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) { .menu-enter, .title-pan, .title-splash { animation: none; } }

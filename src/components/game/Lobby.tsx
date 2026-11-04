@@ -42,7 +42,7 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
   if (tab === 'title') {
     const big = 'w-full font-pixel text-xs sm:text-sm py-3 title-btn';
     return (
-      <div className="fixed inset-0 overflow-hidden select-none">
+      <div className="menu-ui fixed inset-0 overflow-hidden select-none">
         <img src={titleBg} alt="" width={1920} height={1088} className="absolute inset-0 w-full h-full object-cover title-pan" style={{ imageRendering: 'pixelated' }} />
         <div className="absolute inset-0 bg-background/30" />
         <div className="relative h-full flex flex-col items-center justify-center px-4">
@@ -68,10 +68,13 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-background p-3 sm:p-4 overflow-y-auto">
-      <div className="max-w-lg w-full text-center px-2">
-        <h1 className="font-pixel text-lg sm:text-2xl md:text-3xl text-primary text-glow mb-2 leading-relaxed">
-          ☕ CAFE CHAOS
+    <div className="menu-ui fixed inset-0 overflow-y-auto">
+      <img src={titleBg} alt="" width={1920} height={1088} className="fixed inset-0 w-full h-full object-cover" style={{ imageRendering: 'pixelated' }} />
+      <div className="fixed inset-0 bg-background/70" />
+      <div className="relative flex flex-col items-center min-h-full p-3 sm:p-6">
+      <div key={tab} className="menu-enter max-w-lg w-full text-center px-2 my-auto">
+        <h1 className="title-logo text-3xl sm:text-4xl text-primary mb-1 leading-tight">
+          CAFE CHAOS
         </h1>
         <p className="font-pixel text-xs text-muted-foreground mb-3 sm:mb-4">The Morning Rush</p>
 
@@ -80,7 +83,7 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
         </div>
 
         {/* Tab buttons */}
-        <button onClick={() => setTab('title')} className="font-pixel text-xs text-muted-foreground hover:text-foreground mb-3">← Voltar ao título</button>
+        <button onClick={() => setTab('title')} className="font-pixel text-xs px-4 py-2 mb-3 bg-secondary/80 text-secondary-foreground hover:text-foreground">← Voltar ao título</button>
         <div className="flex flex-wrap justify-center gap-2 mb-4">
           <button
             onClick={() => setTab('main')}
@@ -292,6 +295,7 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
           )}
         </div>
 
+      </div>
       </div>
 
       {/* Hard Reset Confirmation Modal */}
