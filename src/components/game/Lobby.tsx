@@ -6,6 +6,7 @@ import MissionsPanel from './MissionsPanel';
 import MultiplayerPanel from './MultiplayerPanel';
 import CollectionPanel from './CollectionPanel';
 import SettingsPanel from './SettingsPanel';
+import titleBg from '@/assets/title-bg.jpg';
 import type { PerfMode } from '../../game/perf';
 import type { NetSession, StartPayload } from '../../game/net';
 
@@ -26,7 +27,7 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
   const [showAchievements, setShowAchievements] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>('medium');
   const [selectedCharacter, setSelectedCharacter] = useState<CharacterId>('barista');
-  const [tab, setTab] = useState<'main' | 'characters' | 'missions' | 'multiplayer' | 'collection' | 'settings'>('main');
+  const [tab, setTab] = useState<'title' | 'main' | 'characters' | 'missions' | 'multiplayer' | 'collection' | 'settings'>('title');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const visibleDifficulties = DIFFICULTIES.filter(d => !d.hidden || isDifficultyUnlocked(d.id));
@@ -37,6 +38,34 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
     setSelectedCharacter('barista');
     setSelectedDifficulty('medium');
   };
+
+  if (tab === 'title') {
+    const big = 'w-full font-pixel text-xs sm:text-sm py-3 title-btn';
+    return (
+      <div className="fixed inset-0 overflow-hidden select-none">
+        <img src={titleBg} alt="" width={1920} height={1088} className="absolute inset-0 w-full h-full object-cover title-pan" style={{ imageRendering: 'pixelated' }} />
+        <div className="absolute inset-0 bg-background/30" />
+        <div className="relative h-full flex flex-col items-center justify-center px-4">
+          <div className="relative mb-10 sm:mb-14">
+            <h1 className="title-logo font-pixel text-3xl sm:text-5xl md:text-6xl text-primary">CAFE CHAOS</h1>
+            <span className="title-splash absolute -right-6 sm:-right-16 -bottom-3 font-pixel text-[10px] sm:text-sm text-coffee-gold">Grãos: {gold} ✦</span>
+          </div>
+          <div className="w-full max-w-sm flex flex-col gap-2.5">
+            <button onClick={() => setTab('main')} className={big}>Jogar</button>
+            <button onClick={() => setTab('multiplayer')} className={big}>Multiplayer</button>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button onClick={() => setTab('characters')} className={big}>Personagens</button>
+              <button onClick={() => setTab('missions')} className={big}>Missões</button>
+              <button onClick={() => setTab('collection')} className={big}>Coleção</button>
+              <button onClick={() => setTab('settings')} className={big}>Opções...</button>
+            </div>
+          </div>
+        </div>
+        <span className="absolute bottom-2 left-3 font-pixel text-[8px] sm:text-[10px] text-foreground/90 title-shadow">Cafe Chaos 3.0</span>
+        <span className="absolute bottom-2 right-3 font-pixel text-[8px] sm:text-[10px] text-foreground/90 title-shadow">The Morning Rush</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-background p-3 sm:p-4 overflow-y-auto">
@@ -51,6 +80,7 @@ const Lobby: React.FC<LobbyProps> = ({ gold, onStartRun, hasGamepad, isTouchDevi
         </div>
 
         {/* Tab buttons */}
+        <button onClick={() => setTab('title')} className="font-pixel text-xs text-muted-foreground hover:text-foreground mb-3">← Voltar ao título</button>
         <div className="flex flex-wrap justify-center gap-2 mb-4">
           <button
             onClick={() => setTab('main')}
